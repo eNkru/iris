@@ -11,6 +11,7 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
+    "test": "vitest run tests/unit tests/components",
     "test:acceptance": "vitest run --dir tests/acceptance",
     "db:generate": "pnpm --filter @iris/database db:generate",
     "db:migrate": "pnpm --filter @iris/database db:migrate",

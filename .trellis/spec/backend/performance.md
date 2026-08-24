@@ -473,7 +473,7 @@ extraction pipeline fetches the product page first, so a blocked fetch surfaces
 as the generic "Page fetch failed" and the create flow rolls the product row
 back — the user cannot add these retailers at all.
 
-### Strategy: Camoufox is the single fetch transport
+### Strategy: Camoufox is the single fetch transport (via argus)
 
 Camoufox is an engine-level anti-detect Firefox fork (the Byparr engine); its
 fingerprinting happens at the C++ engine level, not via JS patches. The
@@ -488,11 +488,12 @@ for free:
 
 Strategy decision (user, 2026-08-04): **Camoufox is the only fetch transport.**
 Playwright/Chromium is removed from the app entirely; there is no dual-path
-orchestration. The browser runs in a separate sidecar container so the app
-image stays small and browser crashes are isolated. The sidecar is a required
-dependency in every environment (dev and prod): the app reads
-`CAMOUFOX_SIDECAR_URL` (required in `env.ts`) and fails fast with a logged
-error if the sidecar is unreachable (AC5).
+orchestration. Since the 2026-08-20 argus migration the browser runs in the
+standalone **argus** service (sibling repo `../argus`), not in the iris
+image: iris stays a Node-only container and calls argus over HTTP. Argus is
+a required dependency in every environment (dev and prod): the app reads
+`ARGUS_BASE_URL` + `ARGUS_API_TOKEN` (both required in `env.ts`) and fails
+fast with a logged error if they are missing or argus is unreachable.
 
 Prior approaches evaluated and superseded:
 - Plain Playwright Chromium (the old transport): fails Akamai product paths
@@ -506,13 +507,14 @@ Prior approaches evaluated and superseded:
   after the stealth verdict, but Camoufox covers all three challenge classes
   for free, so no paid service is needed.
 
-### Pattern: sidecar HTTP client with the shared limiter
+### Pattern: argus HTTP client with the shared limiter
 
-`fetchPage` is a thin HTTP client for the sidecar. It no longer imports
+`fetchPage` is a thin HTTP client for argus (`POST ${ARGUS_BASE_URL}/v1/fetch`
+with `Authorization: Bearer ${ARGUS_API_TOKEN}`). It no longer imports
 Playwright or launches a browser. The operational envelope is preserved
 exactly: the shared `pLimit(5)` (Shared Limiter Pattern), retry /
-exponential-backoff / jitter (`MAX_RETRIES = 3`), and structured logging. The
-sidecar holds ONE shared `AsyncCamoufox` browser and bounds its own concurrency
+exponential-backoff / jitter (`MAX_RETRIES = 3`), and structured logging.
+Argus holds ONE shared `AsyncCamoufox` browser and bounds its own concurrency
 with an asyncio semaphore matching `FETCH_CONCURRENCY = 5`.
 
 ```typescript
@@ -521,35 +523,37 @@ export type FetchPageResult =
   | { kind: "ok"; html: string; url: string }
   | { kind: "blocked"; signature: string };
 
-async function attemptSidecarFetch(url: string, opts: FetchPageOptions) {
-  const response = await fetch(`${getSidecarBaseUrl()}/v1/fetch`, {
+async function attemptArgusFetch(url: string) {
+  const { baseUrl, token } = getArgusConfig();
+  const response = await fetch(`${baseUrl}/v1/fetch`, {
     method: "POST",
-    body: JSON.stringify({ url }),
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`, // ARGUS_API_TOKEN — never logged
+    },
+    body: JSON.stringify({ url, detectBlocked: true }),
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), // 45 s
   });
-  // map JSON {ok:true,html,url} | {ok:false,reason} | non-JSON/network → ok/blocked/error
+  // map JSON {ok:true,html,url}
+  //   | {ok:false,reason:"blocked",signature,retryable}
+  //   | {ok:false,reason:"fetch_failed"} | non-JSON/network → ok/blocked/error
 }
 
 export async function fetchPage(url: string, opts: FetchPageOptions) {
   return pageFetchLimiter(async () => {
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      const result = await attemptSidecarFetch(url, opts);
+      const result = await attemptArgusFetch(url);
       if (result.kind === "ok") {
-        const signature = detectBlockedPage(result.html); // double-check returned HTML
-        if (signature && isBlockedSignatureRetryable(signature) && attempt < MAX_RETRIES) {
-          // challenge evaluated per request → fresh page often passes; backoff + retry
-          await sleep(calculateBackoffDelay(attempt));
-          continue;
-        }
-        if (signature) return { kind: "blocked", signature };
+        // argus already ran its registry (detectBlocked: true) — clean by contract
         return { kind: "ok", html: result.html, url: result.url };
       }
       if (result.kind === "blocked") {
-        if (isBlockedSignatureRetryable(result.reason) && attempt < MAX_RETRIES) {
-          await sleep(calculateBackoffDelay(attempt));
+        if (result.retryable && attempt < MAX_RETRIES) {
+          // challenge evaluated per request → fresh page often passes; backoff + retry
+          await sleep(backoffDelayMs(attempt));
           continue;
         }
-        return { kind: "blocked", signature: result.reason };
+        return { kind: "blocked", signature: result.signature };
       }
       // error → backoff and retry; null on total failure
     }
@@ -558,26 +562,39 @@ export async function fetchPage(url: string, opts: FetchPageOptions) {
 }
 ```
 
-### Anti-bot challenge/deny detection (shipped)
+Classification lives in argus now: the old app-side detection pass and its
+retry-decision helper were deleted with iris's `blocked-signatures.ts` (the
+registry was ported verbatim to `../argus/src/argus/signatures.py`, same ids,
+same predicates, same ordering). Argus surfaces the retry verdict directly on
+the blocked response (`retryable`), so iris carries no registry code at all.
+
+### Anti-bot challenge/deny detection (shipped — now in argus)
 
 Because Camoufox is still a single transport (a regression on a site would have
-no second path), `fetchPage` runs a **generic anti-bot signature check** on
-every returned HTML before returning `ok`. A match short-circuits to the
-`blocked` variant so `checkPrice` surfaces a specific anti-bot reason instead
-of the generic "Page fetch failed" (AC3). The registry covers all challenge
-classes confirmed live 2026-08-04. Real PDPs that only embed a Cloudflare
-Turnstile widget (e.g. pbtech) contain `challenges.cloudflare.com/turnstile`
-but are **not** challenge shells — the signature must not treat bare
+no second path), every fetched page is run through a **generic anti-bot
+signature check** before the caller sees `ok`. Since the 2026-08-20 argus
+migration this registry lives in **argus**
+(`../argus/src/argus/signatures.py`, ported verbatim from iris's deleted
+`packages/prices/src/pipeline/blocked-signatures.ts`); iris sends
+`detectBlocked: true` and consumes `{ ok: false, reason: "blocked", signature,
+retryable }`. A match still short-circuits to the `blocked` variant so
+`checkPrice` surfaces a specific anti-bot reason instead of the generic "Page
+fetch failed" (AC3). The registry covers all challenge classes confirmed live
+2026-08-04. Real PDPs that only embed a Cloudflare Turnstile widget (e.g.
+pbtech) contain `challenges.cloudflare.com/turnstile` but are **not**
+challenge shells — the signature must not treat bare
 `challenges.cloudflare.com` on large pages as a block (false positive fixed
 2026-08-04).
 
 ```typescript
-// packages/prices/src/pipeline/blocked-signatures.ts
+// ../argus/src/argus/signatures.py (ported from the former iris
+// packages/prices/src/pipeline/blocked-signatures.ts)
 const BLOCKED_SIGNATURES = [
   // final deny verdict — not retryable (same fingerprint → same deny)
   { id: "akamai-waf", retryable: false, test: (html) => html.includes("/WAF_Deny_Page/") },
-  // title "Access Denied" + small HTML (edge block after soft home pass)
-  { id: "akamai-access-denied", retryable: false, test: (html) => /* title + len < 5e3 */ },
+  // title "Access Denied" + small HTML (edge block after soft home pass);
+  // intermittent per live behavior → retried (see 2026-08-08 finding below)
+  { id: "akamai-access-denied", retryable: true, test: (html) => /* title + len < 5e3 */ },
   // intermediate behavioral challenge page (not a real PDP) — retryable
   { id: "akamai-behavioral-challenge", retryable: true, test: (html) =>
       html.includes("sec-if-cpt-container") && html.length < 20_000 },
@@ -595,16 +612,17 @@ const BLOCKED_SIGNATURES = [
            || html.includes("challenges.cloudflare.com")
          )) },
 ];
-export function detectBlockedPage(html: string): string | null { ... }
-export function isBlockedSignatureRetryable(id: string): boolean { ... } // unknown ⇒ true
+// argus runs this registry on every /v1/fetch (detectBlocked defaults to
+// true) and returns the verdict on the response:
+//   { ok: false, reason: "blocked", signature, retryable }
 ```
 
-**`retryable` contract**: a blocked signature with `retryable: true` is retried
-by `fetchPage` with a fresh page and backoff (see below); `false` returns
-immediately. Final deny verdicts (`akamai-waf`, `akamai-access-denied`) are
-fingerprint-level outcomes — retrying them just burns latency. Challenge
-shells (behavioral challenges, captchas, managed challenges) default to
-retryable because anti-bot challenges are evaluated per request.
+**`retryable` contract**: a blocked signature with `retryable: true` is
+retried by `fetchPage` with a fresh page and backoff (see below); `false`
+returns immediately. Final deny verdicts (`akamai-waf`) are fingerprint-level
+outcomes — retrying them just burns latency. Challenge shells (behavioral
+challenges, captchas, managed challenges) default to retryable because
+anti-bot challenges are evaluated per request.
 
 ```typescript
 // packages/prices/src/pipeline/check-price.ts — after fetchPage
@@ -656,19 +674,16 @@ Mitigations shipped with this finding:
    returned, versus 1 attempt before. Bounded by the shared `MAX_RETRIES`;
    scheduler batches may hold limiter slots longer while stuck-blocked
    products retry.
-3. Dockerfile pins `camoufox==0.5.4` (browser build 152.0.4-beta.28) so
-   rebuilds cannot silently drift the fingerprint. Verify the pass-rate matrix
-   when bumping.
-4. The sidecar pins the Camoufox fingerprint OS to `linux`
-   (`AsyncCamoufox(headless=True, os="linux")` in `camoufox/server.py`) and the
-   Dockerfile prunes the bundled `macos`/`windows` font directories (~891 MB of
-   TTCs) right after `camoufox fetch`. The container only ever runs the Linux
-   fingerprint, so a macOS/Windows fingerprint that named fonts fontconfig
-   cannot resolve would itself be a fingerprinting tell, and those TTCs gzip
-   poorly so they were dead weight in the image. This shrank the all-in-one
-   image ~11% (2.19 GB → 1.94 GB). When bumping `camoufox`, re-check the
-   `browsers/official/<version>/fonts/` layout before re-adding the prune, and
-   keep the `os="linux"` pin in sync with whichever font set is kept.
+3. The Camoufox build is pinned in **argus** (`pyproject.toml`) so rebuilds
+   cannot silently drift the fingerprint. Verify the pass-rate matrix when
+   bumping.
+4. Argus pins the Camoufox fingerprint OS to `linux`
+   (`AsyncCamoufox(headless=True, os="linux")`) and prunes the bundled
+   `macos`/`windows` font directories (~891 MB of TTCs) after `camoufox
+   fetch`. Rationale (2026-08): a macOS/Windows fingerprint whose named fonts
+   fontconfig cannot resolve is itself a fingerprinting tell, and those TTCs
+   gzip poorly. These are now argus-image concerns — the iris image contains
+   no browser since the 2026-08-20 migration.
 
 **Note**: the single-attempt pass rate was ~55% on the day of testing; it can
 shift as Akamai tunes the challenge. The retry-on-blocked behavior absorbs
@@ -689,40 +704,42 @@ gets denied. Re-run the pass-rate matrix after a cooling-off period; if a
 retailer stays hard-blocked for a user, the documented escalation remains a
 paid scraping API / residential proxy (08-04 PRD).
 
-### Required wiring
+### Required wiring (post-migration, 2026-08-20)
 
-- `CAMOUFOX_SIDECAR_URL` is a required field in `packages/utils/src/lib/env.ts`
-  (`z.string().url()`), matching `DATABASE_URL`'s hard-error behavior (AC5).
-- `.env.example` documents it as required and notes local dev needs the
-  sidecar (`docker compose up camoufox`).
-- `fetch-page.ts` imports `getEnv` (from `@iris/utils`) to read the base URL;
-  no Playwright import remains. `playwright` / `playwright-core` /
-  `chromium-bidi` are removed from `@iris/prices` and `@iris/web` package.json,
-  and from `apps/web/next.config.ts` `serverExternalPackages`.
-- The app `Dockerfile` no longer runs `playwright install --with-deps`; browser
-  deps live in the sidecar image (`camoufox/Dockerfile`).
+- `ARGUS_BASE_URL` + `ARGUS_API_TOKEN` are required fields in
+  `packages/utils/src/lib/env.ts` (no defaults → hard error at first use),
+  matching the transport's required-dependency status.
+- `.env.example` documents both; the token must match one of argus's
+  `ARGUS_API_TOKENS` values.
+- `fetch-page.ts` / `extract-image.ts` import `getEnv` (from `@iris/utils`)
+  to build `${ARGUS_BASE_URL}/v1/fetch(-image)` calls with a bearer header;
+  no Playwright import remains anywhere in iris.
+- The app `Dockerfile` is Node-only: no Python venv, no GTK/NSS/X11 browser
+  libs, no supervisord. The token is never baked into an image layer —
+  runtime value comes from the compose environment.
 - Keep the shared `pLimit` and structured logging wrapping the transport so
   observability is consistent across all fetches.
 
-### Docker / sidecar deployment
+### Deployment: argus is external (post-migration, 2026-08-20)
 
-The sidecar is a separate Compose service (`camoufox/`):
+The fetch service is deployed from its own repo (`../argus` — Dockerfile +
+compose there; `./dev.sh` for local dev). Iris-side contract:
 
-- `camoufox/Dockerfile`: `python:3.12-slim`, pip install `camoufox fastapi
-  uvicorn`, `camoufox fetch` at build (browser cached into the image, offline
-  at runtime), `CMD uvicorn`. Camoufox ships `linux/arm64` builds, so ARM NAS
-  deployments work.
-- `camoufox/server.py`: FastAPI app; one shared `AsyncCamoufox`
-  (headless, `os="linux"`) launched **lazily on the first fetch** and torn
-  down after an idle timeout — see Pattern: Lazy browser lifecycle below;
-  asyncio semaphore (5); `POST /v1/fetch`; `GET /health`; fresh page per
-  request; `goto` `domcontentloaded` (45 s); then a bounded SPA render wait
-  (see Pattern below); `content()` + `page.url()`; stdlib logging; never
-  throws to the caller.
-- `docker-compose.yml`: `camoufox` service (internal network only,
-  `restart: unless-stopped`); app `depends_on: camoufox` (soft — `service_started`,
-  so a slow sidecar start does not block the app from serving) and gets
-  `CAMOUFOX_SIDECAR_URL=http://camoufox:8000`.
+- `docker-compose.yml` passes `ARGUS_BASE_URL` (default
+  `http://localhost:8000`) and requires `ARGUS_API_TOKEN`
+  (`${ARGUS_API_TOKEN:?...}` → `compose up` fails loudly without a token).
+  Argus may sit on any reachable host — same NAS or elsewhere.
+- The entrypoint does NOT wait for argus health: iris starts regardless, and
+  scrapes retry per product once argus is reachable (a down argus surfaces as
+  "Page fetch failed" per check, never a boot failure).
+- Argus `/health` is unauthenticated and returns `200 {status:"ok",
+  browser:"ready"|"absent"}` — the browser is lazy by design, so `absent` is
+  normal at boot.
+- API shapes: `POST /v1/fetch` → `{ok:true,html,url}` |
+  `{ok:false,reason:"blocked",signature,retryable}` |
+  `{ok:false,reason:"fetch_failed"}`; `POST /v1/fetch-image` →
+  `{ok:true,contentType,data(base64)}` | `{ok:false,reason}`. Full spec:
+  `../argus/docs/api-spec.md`.
 
 ### Pattern: SPA render wait (post-domcontentloaded)
 
@@ -739,8 +756,8 @@ hydration (~5.8 s).
 text. The SPA reaches network idle before (or without) putting the price in
 the DOM. `networkidle` also penalizes every page (analytics/polling hang).
 
-**Chosen approach** — generic content-stabilization wait in
-`camoufox/server.py` after a successful `goto` and before `page.content()`:
+**Chosen approach** — generic content-stabilization wait in the fetch service
+(now argus) after a successful `goto` and before `page.content()`:
 
 ```python
 RENDER_WAIT_SECONDS = 8.0   # cap; well under FETCH_TIMEOUT_SECONDS (45)
@@ -782,9 +799,9 @@ html = await page.content()
 - SPA PDP (e.g. woolworths productdetails): returned HTML has body text length
   > 0 AND a price-bearing token; AI extraction yields `{available:true, price, …}`.
 - Static/server-rendered PDP still extracts; latency not unbounded.
-- No `woolworths` / hostname `if` in `camoufox/server.py` (comments naming the
+- No `woolworths` / hostname `if` anywhere in the fetch-service code (comments naming the
   experiment retailer are fine; code branches are not).
-- Diff touches `camoufox/server.py` (+ this spec section); no dependency changes.
+- The pattern is implemented in the fetch service (argus), not in iris.
 
 **Wrong vs Correct**
 
@@ -819,7 +836,8 @@ fetches, and torn down after a configurable idle period with no fetch activity
 (`BROWSER_IDLE_TIMEOUT_SECONDS`, default 300 s, env
 `CAMOUFOX_IDLE_TIMEOUT_SECONDS`).
 
-**Contract (code-spec)** in `camoufox/server.py`:
+**Contract (code-spec)** (implemented in argus since 2026-08-20; originally
+shipped as iris's `camoufox/server.py`):
 - The browser is **NOT** launched in `lifespan`. `lifespan` only creates the
   semaphore, a launch `asyncio.Lock`, and an `_idle_watcher` background task.
   `/health` returns `200 {"status":"ok","browser":"ready"|"absent"}` as soon
@@ -846,7 +864,11 @@ container sits at ~320 MiB / <1.5% CPU; after a fetch the browser is resident
 at ~720 MiB; after the idle timeout it is reaped and RAM returns to ~310 MiB.
 Measured ~500 MiB idle savings vs. the old always-on lifespan launch.
 
-### Pattern: sidecar failure logging and degradation diagnostics
+### Pattern: fetch-service failure logging and degradation diagnostics
+
+(Implemented in argus since 2026-08-20; the code excerpts below are kept from
+the original iris `camoufox/server.py` implementation as the executable
+contract argus ports.)
 shared `AsyncCamoufox` browser silently degraded and every `page.goto` raised.
 The pre-fix code logged only `str(exc)` (no exception class) and the
 `response is None` path logged nothing, so the root cause was invisible.
@@ -860,7 +882,7 @@ LOGGING-ONLY — no browser recreation, no `asyncio.Lock`, no teardown here
 a future self-heal would trigger, so the logs map 1:1).
 
 ```python
-# camoufox/server.py
+# fetch service (argus; originally iris camoufox/server.py)
 DIAGNOSE_THRESHOLD = 3  # aligned with the self-heal task's HEAL_THRESHOLD
 _consecutive_failures: int = 0  # module-level; logging-only
 
@@ -931,7 +953,7 @@ except Exception as exc:  # noqa: BLE001 — never throw to the caller
 - Counter increments `1→2→3→4` across consecutive failures; `_record_success` resets to 0.
 - Exactly one "browser degraded" summary at count == 3; none at 4; none for `no_response` (exc is None).
 - `/v1/fetch` and `/health` responses byte-identical to pre-change for ok / non-2xx / timeout / error.
-- `git diff --stat` touches only `camoufox/server.py`.
+- Changes to this pattern belong in the fetch service (argus), not iris.
 
 **Wrong vs Correct**
 
@@ -948,19 +970,17 @@ except Exception as exc:  # noqa: BLE001
     return FetchResponseFail(reason="fetch_failed")
 ```
 
-**Gotcha**: the sidecar runs Python stdlib `logging`, NOT the app's TS
+**Gotcha**: the fetch service runs Python stdlib `logging`, NOT the app's TS
 `@iris/utils` logger. The backend `logging.md` `console.log` ban and TS logger
-API do not apply here — match the existing `logger.warning(..., extra={...})`
-style in `server.py`. Deps (fastapi/playwright/camoufox) exist only in the
-container image; host-side unit tests must stub them to exercise the pure
-`_record_failure` / `_record_success` / `_exc_type_name` helpers.
+API do not apply there — match the existing `logger.warning(..., extra={...})`
+style. These internals now live in the argus repo (`../argus`).
 
 ### Local dev
 
-`pnpm dev` requires the sidecar. Run `docker compose up camoufox` (or a local
-venv running `uvicorn server:app`) before starting the app. The README and
-`.env.example` note this. With the sidecar on `http://localhost:8000`, local
-dev and the in-container URL both work.
+`pnpm dev` requires a reachable argus service. Start it from its own repo
+(`../argus/dev.sh`, or `docker compose up` there) before starting the app.
+The README and `.env.example` note this; set `ARGUS_BASE_URL=http://localhost:8000`
+and copy the dev token from `../argus/.env` into iris's `.env`.
 
 ### Anti-pattern: retailer-specific code
 

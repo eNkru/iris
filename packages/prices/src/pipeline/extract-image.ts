@@ -208,18 +208,18 @@ function getImagesDir(): string {
 }
 
 /**
- * Body shape of a successful sidecar image fetch response.
+ * Body shape of a successful argus image fetch response.
  */
-interface SidecarImageOkResponse {
+interface ArgusImageOkResponse {
   ok: true;
   contentType: string;
   data: string;
 }
 
 /**
- * Body shape of a sidecar image fetch failure response (the sidecar never throws).
+ * Body shape of an argus image fetch failure response (argus never throws).
  */
-interface SidecarImageFailResponse {
+interface ArgusImageFailResponse {
   ok: false;
   reason: string;
 }
@@ -232,62 +232,65 @@ interface SidecarImageFailResponse {
  */
 type ImageFetchAttempt =
   | { kind: "ok"; contentType: string; data: string }
-  | { kind: "sidecar_rejected"; reason: string };
+  | { kind: "argus_rejected"; reason: string };
 
-async function attemptSidecarImageFetch(
+async function attemptArgusImageFetch(
   imageUrl: string,
 ): Promise<ImageFetchAttempt> {
-  const { CAMOUFOX_SIDECAR_URL } = getEnv();
-  const endpoint = `${CAMOUFOX_SIDECAR_URL.replace(/\/+$/, "")}/v1/fetch-image`;
+  const { ARGUS_BASE_URL, ARGUS_API_TOKEN } = getEnv();
+  const endpoint = `${ARGUS_BASE_URL.replace(/\/+$/, "")}/v1/fetch-image`;
 
   const response = await fetch(endpoint, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${ARGUS_API_TOKEN}`,
+    },
     body: JSON.stringify({ url: imageUrl }),
     signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
   });
 
   if (!response.ok) {
-    throw new SidecarImageHttpError(response.status, response.statusText);
+    throw new ArgusImageHttpError(response.status, response.statusText);
   }
 
   let payload: unknown;
   try {
     payload = await response.json();
   } catch {
-    throw new SidecarImageSchemaMismatchError("non-JSON body");
+    throw new ArgusImageSchemaMismatchError("non-JSON body");
   }
 
   if (payload && typeof payload === "object" && (payload as { ok?: unknown }).ok === true) {
-    const ok = payload as SidecarImageOkResponse;
+    const ok = payload as ArgusImageOkResponse;
     if (
       typeof ok.contentType === "string" &&
       typeof ok.data === "string"
     ) {
       return { kind: "ok", contentType: ok.contentType, data: ok.data };
     }
-    throw new SidecarImageSchemaMismatchError("missing contentType or data");
+    throw new ArgusImageSchemaMismatchError("missing contentType or data");
   }
 
   if (payload && typeof payload === "object" && (payload as { ok?: unknown }).ok === false) {
-    const fail = payload as SidecarImageFailResponse;
+    const fail = payload as ArgusImageFailResponse;
     const reason = typeof fail.reason === "string" ? fail.reason : "unknown";
-    return { kind: "sidecar_rejected", reason };
+    return { kind: "argus_rejected", reason };
   }
 
-  throw new SidecarImageSchemaMismatchError("unexpected payload shape");
+  throw new ArgusImageSchemaMismatchError("unexpected payload shape");
 }
 
 /**
- * Thrown by `attemptSidecarImageFetch` for HTTP / network / schema failures.
+ * Thrown by `attemptArgusImageFetch` for HTTP / network / schema failures.
  * Tagged with `retryable` so the retry helper can branch — schema mismatches
- * are terminal because retrying will not change the sidecar's response shape.
+ * are terminal because retrying will not change argus's response shape.
  */
-class SidecarImageHttpError extends Error {
+class ArgusImageHttpError extends Error {
   readonly status: number;
   constructor(status: number, statusText: string) {
-    super(`sidecar HTTP ${status} ${statusText}`);
-    this.name = "SidecarImageHttpError";
+    super(`argus HTTP ${status} ${statusText}`);
+    this.name = "ArgusImageHttpError";
     this.status = status;
   }
   get retryable(): boolean {
@@ -297,11 +300,11 @@ class SidecarImageHttpError extends Error {
   }
 }
 
-class SidecarImageSchemaMismatchError extends Error {
+class ArgusImageSchemaMismatchError extends Error {
   readonly retryable = false;
   constructor(reason: string) {
-    super(`sidecar schema mismatch: ${reason}`);
-    this.name = "SidecarImageSchemaMismatchError";
+    super(`argus schema mismatch: ${reason}`);
+    this.name = "ArgusImageSchemaMismatchError";
   }
 }
 
@@ -315,10 +318,10 @@ function shouldRetryImageError(
   error: unknown,
   ctx: { attempt: number; maxRetries: number },
 ): { retry: boolean } {
-  if (error instanceof SidecarImageHttpError) {
+  if (error instanceof ArgusImageHttpError) {
     return { retry: error.retryable && ctx.attempt < ctx.maxRetries };
   }
-  if (error instanceof SidecarImageSchemaMismatchError) {
+  if (error instanceof ArgusImageSchemaMismatchError) {
     return { retry: false };
   }
   if (error instanceof Error) {
@@ -340,8 +343,8 @@ function shouldRetryImageError(
  * is `{productId}.{ext}`, where the extension is derived from the response
  * `Content-Type` header.
  *
- * Routes the download through the Camoufox sidecar (`POST /v1/fetch-image`)
- * — the same anti-detect browser that fetches page HTML. Retailers behind
+ * Routes the download through the argus service (`POST /v1/fetch-image`)
+ * — the same anti-detect Camoufox browser that fetches page HTML. Retailers behind
  * Cloudflare or other anti-bot WAFs (e.g. pbtech.co.nz) 403 a plain Node.js
  * `fetch` on image CDN URLs; the browser request carries the full TLS
  * fingerprint and passes the WAF.
@@ -354,7 +357,7 @@ function shouldRetryImageError(
  *       are retried with exponential backoff and jitter.
  *   R3. All downloads share a module-level `pLimit(IMAGE_DOWNLOAD_CONCURRENCY)`
  *       budget (currently 3) so a burst of first-time products does not
- *       spike sidecar / app memory.
+ *       spike argus / app memory.
  *   R4. SVG is rejected at the download boundary because the serve endpoint
  *       streams saved bytes into the authenticated user's DOM with the
  *       same origin — a direct XSS vector.
@@ -370,9 +373,9 @@ export async function downloadProductImage(
     try {
       const { payload, filename } = await retryWithBackoff(
         async () => {
-          const attempt = await attemptSidecarImageFetch(imageUrl);
-          if (attempt.kind === "sidecar_rejected") {
-            logger.warn("Product image download rejected (sidecar)", {
+          const attempt = await attemptArgusImageFetch(imageUrl);
+          if (attempt.kind === "argus_rejected") {
+            logger.warn("Product image download rejected (argus)", {
               productId,
               imageUrl,
               reason: attempt.reason,
@@ -415,7 +418,7 @@ export async function downloadProductImage(
           jitter: IMAGE_RETRY_JITTER,
           shouldRetry: shouldRetryImageError,
           onRetry: (error, attempt, delayMs) => {
-            logger.warn("Product image sidecar error, retrying", {
+            logger.warn("Product image argus error, retrying", {
               productId,
               imageUrl,
               attempt,

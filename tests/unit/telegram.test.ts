@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PriceAlertNotification } from "../../packages/prices/src/notifications/format";
 
-process.env.CAMOUFOX_SIDECAR_URL = "http://127.0.0.1:8000";
+process.env.ARGUS_BASE_URL = "http://127.0.0.1:8000";
+process.env.ARGUS_API_TOKEN = "test-token";
 
 const { getGlobalSettings } = vi.hoisted(() => ({ getGlobalSettings: vi.fn() }));
 

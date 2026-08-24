@@ -1,17 +1,22 @@
 # Iris — one container, one image, one persistent data volume.
+# Anti-detect fetching runs in the external argus service (deployed from the
+# argus repo); iris calls it over HTTP with bearer auth.
 services:
   app:
     build:
       context: .
       args:
         DATABASE_PATH: /app/data/iris.db
-        CAMOUFOX_SIDECAR_URL: http://127.0.0.1:8000
     restart: unless-stopped
     environment:
       NODE_ENV: production
       APP_URL: ${APP_URL:-http://localhost:3000}
       DATABASE_PATH: /app/data/iris.db
-      CAMOUFOX_SIDECAR_URL: http://127.0.0.1:8000
+      # Argus — the external fetch transport. Point ARGUS_BASE_URL at a
+      # reachable argus instance and set ARGUS_API_TOKEN to one of its
+      # ARGUS_API_TOKENS values (compose up fails without a token).
+      ARGUS_BASE_URL: ${ARGUS_BASE_URL:-http://localhost:8000}
+      ARGUS_API_TOKEN: ${ARGUS_API_TOKEN:?set ARGUS_API_TOKEN in .env (must match argus ARGUS_API_TOKENS)}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-dev-secret-change-me}
       SMTP_HOST: ${SMTP_HOST:-localhost}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -25,8 +30,6 @@ services:
       SCHEDULER_TICK_MS: ${SCHEDULER_TICK_MS:-30000}
     ports:
       - "3000:3000"
-      # dev-only: expose the Camoufox sidecar for the acceptance tests; never enable in production
-      - "8000:8000"
     volumes:
       - iris-data:/app/data
     healthcheck:

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-process.env.CAMOUFOX_SIDECAR_URL = "http://127.0.0.1:8000";
+process.env.ARGUS_BASE_URL = "http://127.0.0.1:8000";
+process.env.ARGUS_API_TOKEN = "test-token";
 process.env.AI_EXTRACT_CONCURRENCY = "1";
 process.env.AI_EXTRACT_MIN_INTERVAL_MS = "30";
 

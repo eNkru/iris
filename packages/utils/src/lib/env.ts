@@ -54,12 +54,17 @@ export const envSchema = z.object({
   // Scheduler — in-process loop tick
   SCHEDULER_TICK_MS: z.coerce.number().int().positive().default(30_000),
 
-  // Camoufox sidecar — the single fetch transport (design.md §Config).
-  // The sidecar runs the anti-detect Firefox browser that fetches product
-  // pages behind hard anti-bot challenges (DataDome / Cloudflare / Akamai).
-  // It is a required dependency in every environment (dev and prod): a missing
-  // value is a hard config error at first use, matching `DATABASE_PATH`.
-  CAMOUFOX_SIDECAR_URL: z.string().url("CAMOUFOX_SIDECAR_URL is required"),
+  // Argus — the single fetch transport. The standalone argus service
+  // (../argus) runs the anti-detect Camoufox browser that fetches product
+  // pages behind hard anti-bot challenges (DataDome / Cloudflare / Akamai)
+  // and classifies blocked pages (its registry supersedes iris's old
+  // blocked-signatures.ts). It is a required dependency in every environment
+  // (dev and prod): a missing value is a hard config error at first use,
+  // matching `DATABASE_PATH`.
+  ARGUS_BASE_URL: z.string().url("ARGUS_BASE_URL is required"),
+  // Bearer token for argus /v1/* routes. Secret — never log it; it is only
+  // ever placed in an Authorization header.
+  ARGUS_API_TOKEN: z.string().min(1, "ARGUS_API_TOKEN is required"),
 });
 
 export type Env = z.infer<typeof envSchema>;

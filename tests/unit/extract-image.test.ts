@@ -3,7 +3,8 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-process.env.CAMOUFOX_SIDECAR_URL = "http://127.0.0.1:8000";
+process.env.ARGUS_BASE_URL = "http://127.0.0.1:8000";
+process.env.ARGUS_API_TOKEN = "test-token";
 // Module-load-time value used as a fallback in afterEach when IMAGES_DIR was
 // never set in the parent environment before the test ran.
 const ORIGINAL_IMAGES_DIR = "data/images-test-vitest";

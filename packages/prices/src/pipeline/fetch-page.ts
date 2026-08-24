@@ -1,27 +1,33 @@
 import pLimit from "p-limit";
 import { getEnv, logger } from "@iris/utils";
-import { detectBlockedPage, isBlockedSignatureRetryable } from "./blocked-signatures";
 import { backoffDelayMs } from "./retry";
 
 /**
- * Page fetching via a single anti-detect-browser transport (Camoufox) hosted
- * in a sidecar HTTP service. Replaces the prior in-process Playwright Chromium
- * transport: several major NZ retailers sit behind hard anti-bot challenges
- * (DataDome / Cloudflare managed / Akamai Bot Manager) that plain Chromium
- * cannot pass, so `create` failed with the generic "Page fetch failed".
+ * Page fetching via the standalone argus service — a general-purpose
+ * anti-detect-browser (Camoufox) fetch transport reached over HTTP with
+ * bearer auth. Replaces the prior in-process Playwright Chromium transport:
+ * several major NZ retailers sit behind hard anti-bot challenges (DataDome /
+ * Cloudflare managed / Akamai Bot Manager) that plain Chromium cannot pass,
+ * so `create` failed with the generic "Page fetch failed".
  *
  * Camoufox is an engine-level anti-detect Firefox fork; the 2026-08-04 spike
  * proved it passes all three challenge classes for free. It is now the SINGLE
- * fetch transport — there is no Playwright/Chromium in the app anymore, and no
- * dual-path orchestration. The sidecar is a required dependency in every
- * environment (design.md §Config, AC5).
+ * fetch transport — there is no Playwright/Chromium in the app anymore, and
+ * no dual-path orchestration. Argus is a required dependency in every
+ * environment (env.ts: missing ARGUS_BASE_URL / ARGUS_API_TOKEN is a hard
+ * config error at first use).
  *
- * This module is a thin HTTP client for the sidecar. It preserves the
- * operational envelope of the prior transport: the shared `pLimit`
- * (performance.md — Shared Limiter Pattern), the retry / exponential-backoff /
- * jitter loop, and the structured logging. The sidecar holds ONE shared
- * `AsyncCamoufox` browser and bounds concurrency with its own asyncio
+ * This module is a thin HTTP client for argus. It preserves the operational
+ * envelope of the prior transport: the shared `pLimit` (performance.md —
+ * Shared Limiter Pattern), the retry / exponential-backoff / jitter loop, and
+ * the structured logging. Argus holds ONE shared `AsyncCamoufox` browser
+ * (lazy-launched, idle-torn-down) and bounds concurrency with its own asyncio
  * semaphore matching `FETCH_CONCURRENCY`.
+ *
+ * Anti-bot classification lives in argus now: its blocked-signature registry
+ * (ported from iris's old blocked-signatures.ts) runs on every fetched page
+ * (request sends `detectBlocked: true`) and returns the signature id plus a
+ * `retryable` verdict directly on the blocked response.
  *
  * `fetchPage` returns a discriminated union so callers can distinguish a real
  * page from a detected challenge/deny page (AC3) and from a transport failure
@@ -35,11 +41,12 @@ const MAX_RETRIES = 3;
 /**
  * Discriminated result of a page fetch (design.md §fetchPage return type).
  *
- * - `ok`: the page loaded and `detectBlockedPage` found no challenge marker.
- * - `blocked`: the sidecar returned HTML, but it matches a known challenge /
- *   deny signature — no real content. `signature` is the registry id (e.g.
+ * - `ok`: the page loaded and argus's blocked-signature registry found no
+ *   challenge marker (argus runs the registry itself; `detectBlocked: true`).
+ * - `blocked`: argus classified the returned HTML as a known challenge /
+ *   deny page — no real content. `signature` is the registry id (e.g.
  *   `datadome-captcha`), surfaced in the failure reason.
- * - `null`: the transport itself failed after retries (network error, sidecar
+ * - `null`: the transport itself failed after retries (network error, argus
  *   unreachable, non-JSON response). Callers map this to "Page fetch failed".
  */
 export type FetchPageResult =
@@ -55,62 +62,75 @@ export interface FetchPageOptions {
 const pageFetchLimiter = pLimit(FETCH_CONCURRENCY);
 
 /**
- * Resolve the sidecar base URL. `CAMOUFOX_SIDECAR_URL` is required in env, so a
- * missing value is a hard config error at first use (matching `DATABASE_PATH`,
- * AC5). Trailing slashes are stripped so `base + "/v1/fetch"` always works.
+ * Resolve the argus base URL + bearer token. Both are required in env, so a
+ * missing value is a hard config error at first use (matching
+ * `DATABASE_PATH`). Trailing slashes are stripped so `base + "/v1/fetch"`
+ * always works. The token is only ever placed in an Authorization header —
+ * never logged.
  */
-function getSidecarBaseUrl(): string {
-  const { CAMOUFOX_SIDECAR_URL } = getEnv();
-  return CAMOUFOX_SIDECAR_URL.replace(/\/+$/, "");
+function getArgusConfig(): { baseUrl: string; token: string } {
+  const { ARGUS_BASE_URL, ARGUS_API_TOKEN } = getEnv();
+  return { baseUrl: ARGUS_BASE_URL.replace(/\/+$/, ""), token: ARGUS_API_TOKEN };
 }
 
-/** Body shape of a successful sidecar fetch response. */
-interface SidecarOkResponse {
+/** Body shape of a successful argus fetch response. */
+interface ArgusOkResponse {
   ok: true;
   html: string;
   url: string;
 }
 
-/** Body shape of a sidecar fetch failure response (the sidecar never throws). */
-interface SidecarFailResponse {
+/**
+ * Body shape of an argus fetch failure response (argus never throws). A
+ * blocked page carries the signature id + retryable verdict from argus's
+ * registry (ported verbatim from iris's old blocked-signatures.ts).
+ */
+interface ArgusFailResponse {
   ok: false;
   reason: "blocked" | "fetch_failed";
+  /** Present when `reason === "blocked"`: registry signature id. */
+  signature?: string;
+  /** Present when `reason === "blocked"`: fresh-attempt verdict. */
+  retryable?: boolean;
 }
 
 /**
- * Outcome of a single sidecar attempt. `error` covers any transport-level
- * failure (network error, non-2xx status, non-JSON body, timeout) so the retry
- * loop can back off and try again. The sidecar itself classifies anti-bot
- * blocks as `{ ok: false, reason: "blocked" }`, but we still run
- * `detectBlockedPage` on an `ok` HTML payload below to cover edge cases where
- * the sidecar returns the challenge HTML verbatim (design.md §orchestration).
+ * Outcome of a single argus attempt. `error` covers any transport-level
+ * failure (network error, non-2xx status, non-JSON body, timeout) so the
+ * retry loop can back off and try again. Argus classifies anti-bot blocks
+ * itself (the request sends `detectBlocked: true`), so an `ok` payload is
+ * clean by contract and no app-side classification remains.
  */
 type FetchAttempt =
   | { kind: "ok"; html: string; url: string }
-  | { kind: "blocked"; reason: string }
+  | { kind: "blocked"; signature: string; retryable: boolean }
   | { kind: "error"; message: string };
 
 /**
- * Perform a single sidecar fetch. POST `CAMOUFOX_SIDECAR_URL + /v1/fetch` with
- * a 45 s timeout. Never throws: any failure (network error, non-JSON,
- * non-2xx, timeout, schema mismatch) is mapped to `{ kind: "error" }` so the
- * retry loop owns all backoff decisions.
+ * Perform a single argus fetch. POST `ARGUS_BASE_URL + /v1/fetch` with bearer
+ * auth and a 45 s timeout. Never throws: any failure (network error,
+ * non-JSON, non-2xx, timeout, schema mismatch) is mapped to
+ * `{ kind: "error" }` so the retry loop owns all backoff decisions.
  */
-async function attemptSidecarFetch(url: string): Promise<FetchAttempt> {
-  const endpoint = `${getSidecarBaseUrl()}/v1/fetch`;
+async function attemptArgusFetch(url: string): Promise<FetchAttempt> {
+  const { baseUrl, token } = getArgusConfig();
+  const endpoint = `${baseUrl}/v1/fetch`;
 
   try {
     const response = await fetch(endpoint, {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ url }),
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ url, detectBlocked: true }),
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 
     if (!response.ok) {
       return {
         kind: "error",
-        message: `sidecar HTTP ${response.status} ${response.statusText}`,
+        message: `argus HTTP ${response.status} ${response.statusText}`,
       };
     }
 
@@ -119,7 +139,7 @@ async function attemptSidecarFetch(url: string): Promise<FetchAttempt> {
       payload = await response.json();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return { kind: "error", message: `sidecar non-JSON response: ${message}` };
+      return { kind: "error", message: `argus non-JSON response: ${message}` };
     }
 
     if (
@@ -127,7 +147,7 @@ async function attemptSidecarFetch(url: string): Promise<FetchAttempt> {
       typeof payload === "object" &&
       (payload as { ok?: unknown }).ok === true
     ) {
-      const ok = payload as SidecarOkResponse;
+      const ok = payload as ArgusOkResponse;
       if (typeof ok.html === "string" && typeof ok.url === "string") {
         return { kind: "ok", html: ok.html, url: ok.url };
       }
@@ -138,15 +158,22 @@ async function attemptSidecarFetch(url: string): Promise<FetchAttempt> {
       typeof payload === "object" &&
       (payload as { ok?: unknown }).ok === false
     ) {
-      const fail = payload as SidecarFailResponse;
+      const fail = payload as ArgusFailResponse;
       const reason = typeof fail.reason === "string" ? fail.reason : "unknown";
       if (reason === "blocked") {
-        return { kind: "blocked", reason };
+        return {
+          kind: "blocked",
+          // Defensive: argus sends both fields on a blocked response; fall
+          // back conservatively (unknown signature → retryable) if absent.
+          signature:
+            typeof fail.signature === "string" ? fail.signature : "unknown",
+          retryable: typeof fail.retryable === "boolean" ? fail.retryable : true,
+        };
       }
-      return { kind: "error", message: `sidecar fetch failed (${reason})` };
+      return { kind: "error", message: `argus fetch failed (${reason})` };
     }
 
-    return { kind: "error", message: "sidecar returned an unexpected payload" };
+    return { kind: "error", message: "argus returned an unexpected payload" };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { kind: "error", message };
@@ -154,7 +181,7 @@ async function attemptSidecarFetch(url: string): Promise<FetchAttempt> {
 }
 
 /**
- * Fetch a product page via the Camoufox sidecar.
+ * Fetch a product page via the argus service (Camoufox transport).
  *
  * Returns `null` when the transport ultimately fails after retries (so callers
  * map it to "Page fetch failed"), or a `blocked` variant when a challenge/deny
@@ -181,43 +208,30 @@ export async function fetchPage(
 ): Promise<FetchPageResult | null> {
   return pageFetchLimiter(async () => {
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      const result = await attemptSidecarFetch(url);
+      const result = await attemptArgusFetch(url);
 
       if (result.kind === "ok") {
-        const signature = detectBlockedPage(result.html);
-        if (signature) {
-          if (isBlockedSignatureRetryable(signature) && attempt < MAX_RETRIES) {
-            logger.warn("Page blocked by anti-bot WAF; retrying with a fresh fetch", {
-              url,
-              signature,
-              attempt,
-              productId: options.productId,
-            });
-            await sleep(backoffDelayMs(attempt));
-            continue;
-          }
-          return { kind: "blocked", signature };
-        }
+        // Argus already ran the blocked-signature registry (detectBlocked:
+        // true) — an `ok` payload is classified clean by contract.
         return { kind: "ok", html: result.html, url: result.url };
       }
 
       if (result.kind === "blocked") {
-        const retryable = isBlockedSignatureRetryable(result.reason);
-        logger.warn("Page blocked by anti-bot challenge (sidecar)", {
+        logger.warn("Page blocked by anti-bot challenge (argus)", {
           url,
-          reason: result.reason,
-          retryable,
+          signature: result.signature,
+          retryable: result.retryable,
           attempt,
           productId: options.productId,
         });
-        if (retryable && attempt < MAX_RETRIES) {
+        if (result.retryable && attempt < MAX_RETRIES) {
           await sleep(backoffDelayMs(attempt));
           continue;
         }
-        return { kind: "blocked", signature: result.reason };
+        return { kind: "blocked", signature: result.signature };
       }
 
-      logger.warn("Page fetch sidecar error", {
+      logger.warn("Page fetch argus error", {
         url,
         error: result.message,
         attempt,

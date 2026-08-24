@@ -53,20 +53,23 @@ Rules (verified on Vite 6 + Hono 4):
   Use `typeof __dirname !== "undefined"` as a guard to resolve the static root
   in both ESM (dev/tsx) and CJS (production) modes.
 
-## Docker single-container (web + worker + Camoufox)
+## Docker single-container (web + worker)
 
-- One app container runs the Hono web server, the in-process scheduler, and
-  Camoufox (via supervisord) — all on one volume-backed container.
+- One app container runs the Hono web server and the in-process scheduler —
+  a single Node process on one volume-backed container. Page fetching runs in
+  the external argus service (deployed from the argus repo; iris calls it over
+  HTTP with bearer auth).
 - The entrypoint runs `db:migrate` (idempotent, Drizzle) on every start so a
   fresh deployment needs only `docker compose up --build -d`.
 - `pnpm install --frozen-lockfile` in the Dockerfile requires the lockfile to
   be committed and consistent; run `pnpm install` locally to keep it in sync.
 - Pin the pnpm version via corepack matching `packageManager` in package.json:
   `RUN corepack enable && corepack prepare pnpm@<version> --activate`.
-- `DATABASE_PATH` and `CAMOUFOX_SIDECAR_URL` build args may be required even
-  though the connection is lazy: module-level env validation (`getEnv()`) can
-  run during `esbuild` bundling. Compose passes them via `build.args`; no real
-  connection happens at build time.
+- `DATABASE_PATH` build arg and `ARGUS_BASE_URL`/`ARGUS_API_TOKEN` build-time
+  placeholders may be required even though the connection is lazy: module-level
+  env validation (`getEnv()`) can run during `esbuild` bundling. Compose passes
+  them via `build.args`; no real connection happens at build time. The runtime
+  token is injected via compose env, never baked into an image layer.
 - Healthcheck: expose a public health procedure on the oRPC router and point the
   container healthcheck at its real path
   (`wget -qO- http://localhost:3000/api/rpc/health/check`).
@@ -91,21 +94,24 @@ Rules (verified on Vite 6 + Hono 4):
 
 ## Compose topology
 
-- `app` (build `.`), one `iris-data` volume mounted at `/app/data`.
-- `supervisord` runs Camoufox on `127.0.0.1:8000` and the Hono app/scheduler
-  on port 3000.
-- The entrypoint applies SQLite migrations, waits for Camoufox `/health`, then
-  starts `node dist-server/server.cjs`.
-- `DATABASE_PATH=/app/data/iris.db` and
-  `CAMOUFOX_SIDECAR_URL=http://127.0.0.1:8000` are internal container contracts.
+- `app` (build `.`), one `iris-data` volume mounted at `/app/data`. The
+  argus service is NOT part of this compose file — it deploys from its own
+  repo and is reached over the network.
+- The entrypoint applies SQLite migrations, then starts
+  `node dist-server/server.cjs`. It does not wait for argus; scrapes retry
+  once argus is reachable.
+- `DATABASE_PATH=/app/data/iris.db` is an internal container contract;
+  `ARGUS_BASE_URL` points outside (default `http://localhost:8000`) and
+  `ARGUS_API_TOKEN` must be provided via `.env`.
 
 ## Single-image SQLite deployment
 
 Native `better-sqlite3` is a direct server dependency and is externalized from
 the esbuild bundle (`--external:better-sqlite3`). Docker includes the native
 build toolchain as a fallback for architectures without a prebuilt addon.
-Validate the image with both health endpoints, `supervisorctl status`, a
-supervised Camoufox restart, and a full container restart.
+Validate the image with both health endpoints and a full container restart.
+Since the 2026-08-20 argus migration there is no supervisord and no in-image
+browser — the container runs exactly one Node process.
 
 ### Measured footprint (2026-08-13)
 

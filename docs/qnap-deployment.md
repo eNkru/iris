@@ -1,7 +1,9 @@
 # Iris on a QNAP NAS — build & deploy guide
 
-Single all-in-one container (Next.js + scheduler + Camoufox) on a QNAP running
-Container Station. All persistent data and configuration live in one shared
+Single all-in-one container (Hono server + scheduler) on a QNAP running
+Container Station. Page fetching runs in the external **argus** service
+(deployed from the argus repo — on the same NAS or any reachable host).
+All persistent data and configuration live in one shared
 folder on the NAS **outside** the container, so recreating the container or
 updating the image never wipes anything.
 
@@ -11,6 +13,8 @@ updating the image never wipes anything.
 - SSH enabled on the NAS (Control Panel → Telnet/SSH) so you can run `docker` CLI.
 - A Mac/PC with Docker. Your Docker daemon must produce `linux/amd64` images —
   the same target as an x86_64 NAS (no cross-compilation needed).
+- A reachable argus service with an API token (see the argus repo's deploy
+  docs); iris needs `ARGUS_BASE_URL` + `ARGUS_API_TOKEN`.
 
 ## 1. Build the image on your computer
 
@@ -19,9 +23,9 @@ updating the image never wipes anything.
 docker build -t iris:1.0.0 .
 ```
 
-No build args are required (`DATABASE_PATH` and `CAMOUFOX_SIDECAR_URL` default
-to the internal container contract `/app/data/iris.db` and
-`http://127.0.0.1:8000`).
+No build args are required (`DATABASE_PATH` defaults to the internal
+container contract `/app/data/iris.db`; the `ARGUS_*` build values are
+placeholders overridden at runtime by the `.env`).
 
 Verify the platform before shipping it to the NAS:
 
@@ -40,7 +44,8 @@ docker save iris:1.0.0 | gzip > ~/iris-1.0.0.tar.gz
 scp ~/iris-1.0.0.tar.gz admin@my-nas:/share/Container/iris/
 ```
 
-> Image is ~1 GB+ when uncompressed (Node + Python + Camoufox browser). gzip
+> Image is well under 1 GB uncompressed (Node-only since page fetching
+> moved to argus). gzip
 > it and expect a slow transfer over the LAN. Alternatively push to a registry
 > (Docker Hub / GHCR) and `docker pull` on the NAS — especially handy for
 > re-deploys.
@@ -99,7 +104,8 @@ AI_API_KEY=...
 AI_MODEL=gpt-4o-mini
 TELEGRAM_BOT_TOKEN=
 SCHEDULER_TICK_MS=30000
-CAMOUFOX_SIDECAR_URL=http://127.0.0.1:8000
+ARGUS_BASE_URL=http://<argus-host>:8000
+ARGUS_API_TOKEN=<token matching argus ARGUS_API_TOKENS>
 ```
 
 `DATABASE_PATH` must point at the mounted dir `/app/data/iris.db`. Do NOT set
@@ -144,10 +150,11 @@ Data and config are untouched — only the container is swapped:
   keep your DB on the NAS filesystem, and survive `docker compose down`.
   The `iris-data` volume in the repo's dev `docker-compose.yml` is replaced by
   the `./data` bind mount here.
-- **First boot**: the entrypoint runs `pnpm db:migrate` (idempotent) then waits
-  for Camoufox `/health` before starting the web server; allow ~60 s.
+- **First boot**: the entrypoint runs `pnpm db:migrate` (idempotent) then
+  starts the web server immediately — iris does not wait for argus; scrapes
+  retry once argus is reachable.
 - **CPU architecture**: QNAPs are x86_64 or arm64. Build to match. The
-  Camoufox browser is pinned in the Dockerfile; verification matrix for the
-  pinned build is stored in the Trellis task `08-08-single-docker-image`.
+  Camoufox browser now lives in the argus service; verification matrix for
+  the pinned build is stored in the Trellis task `08-08-single-docker-image`.
 - **Backups**: the whole `data/` dir is one file (`iris.db`) + WAL — just
   snapshot that folder while the container is stopped, or use QNAP's snapshot.

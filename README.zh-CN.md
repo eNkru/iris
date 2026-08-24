@@ -10,7 +10,7 @@
 - **降价提醒** — 每次价格检查都会评估可配置的提醒规则
 - **提醒渠道** — 邮件和 Telegram 通知，以及周期性摘要
 - **AI 驱动的内容提取** — 由任意兼容 OpenAI 的模型从商品页面提取价格；实例级 AI 设置可在运行时由管理员修改
-- **反爬虫抓取** — 页面通过 [Camoufox](https://camoufox.com) 抓取，并在同一个容器内由 supervisord 管理，因此即使页面受到 DataDome / Cloudflare / Akamai 挑战保护也能正常工作
+- **反爬虫抓取** — 页面通过独立 **argus** 服务托管的反检测 [Camoufox](https://camoufox.com) 浏览器抓取，因此即使页面受到 DataDome / Cloudflare / Akamai 挑战保护也能正常工作
 - **魔法链接登录** — 基于 better-auth 的邮箱魔法链接登录，内置初始化的管理员用户
 - **调度器** — 进程内调度循环，并通过按商品划分的 single-flight 保护避免重复检查
 
@@ -18,12 +18,12 @@
 
 | 层级 | 技术 |
 | --- | --- |
-| Web 应用 | Next.js 15, React 19, Tailwind CSS v4, TanStack Query, Recharts |
+| Web 应用 | Vite SPA + Hono 服务器，React 19，React Router 7，Tailwind CSS v4，TanStack Query，Recharts |
 | API | oRPC + Zod |
 | 认证 | better-auth（魔法链接，SMTP） |
 | 数据库 | SQLite + Drizzle ORM + better-sqlite3 |
-| 运行时 | supervisord 管理的 Node/Python 单镜像 |
-| 价格流水线 | Camoufox 抓取服务 + AI SDK（兼容 OpenAI） |
+| 运行时 | 单一 Node 镜像（单个 Hono 进程） |
+| 价格流水线 | Argus 抓取服务（反检测 Camoufox）+ AI SDK（兼容 OpenAI） |
 | 通知 | SMTP（nodemailer），Telegram Bot API |
 
 ## 仓库结构
@@ -32,24 +32,22 @@ pnpm monorepo（pnpm ≥ 11，Node ≥ 20）：
 
 ```
 apps/
-  web/            Next.js 应用 — UI、oRPC 客户端、进程内调度器入口
+  web/            Vite + Hono 应用 — UI、oRPC 客户端、进程内调度器入口
 packages/
   api/            oRPC 路由、过程、中间件
   auth/           better-auth 配置、SMTP 魔法链接邮件、管理员初始化
   database/       SQLite Drizzle 模式、迁移、查询、种子脚本
   prices/         价格流水线（抓取 → AI 提取 → 提醒规则）、调度器、通知
   utils/          通用工具和环境校验
-camoufox/         Camoufox HTTP 抓取服务源码（在镜像内运行）
-Dockerfile        Node、Python、Camoufox 单镜像
-supervisord.conf  管理 Web 应用和 Camoufox 进程
+Dockerfile        单一 Node 镜像（页面抓取由外部 argus 服务承担）
 ```
 
 ## 快速开始（Docker）
 
-推荐的部署方式是一个容器加一个持久化 SQLite 卷。镜像通过 supervisord 运行 Next.js 应用、调度器和 Camoufox 抓取服务；启动时会自动执行迁移。
+推荐的部署方式是一个容器加一个持久化 SQLite 卷。镜像以单个 Node 进程运行 Hono Web 服务器和调度器；启动时会自动执行迁移。页面抓取需要一个可访问的 **argus** 服务（从 argus 仓库部署）——请相应设置 `ARGUS_BASE_URL` 和 `ARGUS_API_TOKEN`。
 
 ```bash
-cp .env.example .env   # 调整密钥（BETTER_AUTH_SECRET、SMTP、AI_API_KEY 等）
+cp .env.example .env   # 调整密钥（BETTER_AUTH_SECRET、SMTP、AI_API_KEY、ARGUS_API_TOKEN 等）
 docker compose up --build -d
 ```
 
@@ -65,18 +63,14 @@ cp .env.example .env
 pnpm db:migrate
 pnpm db:seed
 
-# 在 Python 环境中单独运行 Camoufox 服务
-# （或者使用 `docker compose up --build -d` 启动完整环境）
-cd camoufox
-python -m pip install camoufox fastapi uvicorn
-camoufox fetch
-uvicorn server:app --host 127.0.0.1 --port 8000
+# 从 argus 仓库运行抓取服务（见其 README：
+# 本地开发用 ./dev.sh，或用该仓库的 docker compose up）
 
 # 另一个终端，从仓库根目录运行
 pnpm dev
 ```
 
-如需接近生产环境的本地运行方式，使用 `docker compose up --build -d`；不再需要 Postgres、Redis 或独立的伴生服务容器。
+如需接近生产环境的本地运行方式，使用 `docker compose up --build -d`；不需要 Postgres、Redis，也不再有仓库内的浏览器伴生服务——抓取由外部 argus 服务承担。
 
 ### 脚本
 
@@ -104,7 +98,8 @@ pnpm dev
 | `AI_BASE_URL` / `AI_API_KEY` / `AI_MODEL` | 任意兼容 OpenAI 的端点；实例级设置可在运行时由管理员修改 |
 | `TELEGRAM_BOT_TOKEN` | 提醒渠道使用的 Telegram 机器人 |
 | `SCHEDULER_TICK_MS` | 调度器查找到期商品的频率（默认 30 秒） |
-| `CAMOUFOX_SIDECAR_URL` | 本地开发时的抓取服务地址；Docker 内部设置为 `http://127.0.0.1:8000` |
+| `ARGUS_BASE_URL` | argus 抓取服务地址（默认 `http://localhost:8000`） |
+| `ARGUS_API_TOKEN` | argus `/v1/*` 路由的 Bearer 令牌；必须与 argus 的 `ARGUS_API_TOKENS` 之一匹配 |
 
 现有 Postgres 数据不会自动迁移。切换部署前，请重新添加商品，或有计划地执行手动导出/导入。
 

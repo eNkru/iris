@@ -10,7 +10,7 @@ Self-hosted price tracking & alert app. Add products, let Iris watch their price
 - **Price-drop alerts** — configurable alert rules evaluated on every price check
 - **Alert channels** — Email and Telegram notifications, plus periodic summaries
 - **AI-powered extraction** — prices are extracted from product pages by any OpenAI-compatible model (OpenAI, OpenRouter, a local Ollama server, …); instance-level AI settings are admin-editable at runtime
-- **Anti-bot fetching** — pages are fetched through [Camoufox](https://camoufox.com), supervised inside the same container as the app, so pages behind DataDome / Cloudflare / Akamai challenges still work
+- **Anti-bot fetching** — pages are fetched through an anti-detect [Camoufox](https://camoufox.com) browser hosted by the standalone **argus** service, so pages behind DataDome / Cloudflare / Akamai challenges still work
 - **Magic-link auth** — email magic-link login via better-auth, with a bootstrapped admin user
 - **Scheduler** — an in-process scheduler loop with a per-product single-flight guard
 
@@ -18,12 +18,12 @@ Self-hosted price tracking & alert app. Add products, let Iris watch their price
 
 | Layer | Tech |
 | --- | --- |
-| Web app | Next.js 15, React 19, Tailwind CSS v4, TanStack Query, Recharts |
+| Web app | Vite SPA + Hono server, React 19, React Router 7, Tailwind CSS v4, TanStack Query, Recharts |
 | API | oRPC + Zod |
 | Auth | better-auth (magic link, SMTP) |
 | Database | SQLite + Drizzle ORM + better-sqlite3 |
-| Runtime | One Node/Python image supervised by supervisord |
-| Price pipeline | Camoufox fetch service + AI SDK (OpenAI-compatible) |
+| Runtime | One Node image (single Hono process) |
+| Price pipeline | Argus fetch service (anti-detect Camoufox) + AI SDK (OpenAI-compatible) |
 | Notifications | SMTP (nodemailer), Telegram Bot API |
 
 ## Repository layout
@@ -32,24 +32,22 @@ pnpm monorepo (pnpm ≥ 11, Node ≥ 20):
 
 ```
 apps/
-  web/            Next.js app — UI, oRPC client, in-process scheduler entrypoint
+  web/            Vite + Hono app — UI, oRPC client, in-process scheduler entrypoint
 packages/
   api/            oRPC router, procedures, middleware
   auth/           better-auth setup, SMTP magic-link mailer, admin bootstrap
   database/       SQLite Drizzle schema, migrations, queries, seed script
   prices/         price pipeline (fetch → AI extract → alert rules), scheduler, notifications
   utils/          shared helpers and environment validation
-camoufox/         Camoufox HTTP fetch service source (runs inside the image)
-Dockerfile        Single image for Node, Python, and Camoufox
-supervisord.conf  Supervises the web app and Camoufox processes
+Dockerfile        Single Node image (page fetching is external: argus)
 ```
 
 ## Quick start (Docker)
 
-The recommended deployment is one container with one persistent SQLite volume. The image runs the Next.js app, scheduler, and Camoufox fetch service under supervisord; migrations run automatically on startup.
+The recommended deployment is one container with one persistent SQLite volume. The image runs the Hono web server and scheduler as a single Node process; migrations run automatically on startup. Page fetching requires a reachable **argus** service (deployed from the argus repo) — set `ARGUS_BASE_URL` and `ARGUS_API_TOKEN` accordingly.
 
 ```bash
-cp .env.example .env   # adjust secrets (BETTER_AUTH_SECRET, SMTP, AI_API_KEY, …)
+cp .env.example .env   # adjust secrets (BETTER_AUTH_SECRET, SMTP, AI_API_KEY, ARGUS_API_TOKEN, …)
 docker compose up --build -d
 ```
 
@@ -65,18 +63,15 @@ cp .env.example .env
 pnpm db:migrate
 pnpm db:seed
 
-# run the Camoufox service separately in a Python environment
-# (or use `docker compose up --build -d` for the complete stack)
-cd camoufox
-python -m pip install camoufox fastapi uvicorn
-camoufox fetch
-uvicorn server:app --host 127.0.0.1 --port 8000
+# run the argus fetch service from the argus repo
+# (see its README: ./dev.sh for local development,
+#  or docker compose up in that repo)
 
 # in another terminal, from the repository root
 pnpm dev
 ```
 
-For a production-like local run, use `docker compose up --build -d`; no Postgres, Redis, or standalone sidecar containers are required.
+For a production-like local run, use `docker compose up --build -d`; no Postgres, Redis, or in-repo browser sidecar is required — argus is the external fetch service.
 
 ### Scripts
 
@@ -104,7 +99,8 @@ Copy `.env.example` to `.env` and adjust. The important ones:
 | `AI_BASE_URL` / `AI_API_KEY` / `AI_MODEL` | Any OpenAI-compatible endpoint; instance-level settings are admin-editable at runtime |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot for the alert channel |
 | `SCHEDULER_TICK_MS` | How often the scheduler looks for due products (default 30 s) |
-| `CAMOUFOX_SIDECAR_URL` | Fetch service URL for local development; Docker sets this internally to `http://127.0.0.1:8000` |
+| `ARGUS_BASE_URL` | URL of the argus fetch service (default `http://localhost:8000`) |
+| `ARGUS_API_TOKEN` | Bearer token for argus `/v1/*` routes; must match one of argus's `ARGUS_API_TOKENS` |
 
 Existing Postgres data is not migrated automatically. Re-add tracked products or perform a deliberate manual export/import before switching deployments.
 
