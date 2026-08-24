@@ -29,7 +29,15 @@ import { backoffDelayMs } from "./retry";
  */
 
 const EXTRACT_CONCURRENCY = 5;
-const EXTRACT_TIMEOUT_MS = 45_000;
+/**
+ * Per-attempt envelope. Generous by design: argus's own worst case stacks
+ * navigation (up to 35s) + SPA render wait (8s) + the LLM fallback with
+ * internal retries (free-tier models can be slow), and aborting mid-flight
+ * would waste all of that server-side work AND trigger a duplicate full
+ * extraction on retry. Argus keeps its per-request navigation timeout below
+ * this so it (not our AbortSignal) owns the failure classification.
+ */
+const EXTRACT_TIMEOUT_MS = 120_000;
 const MAX_RETRIES = 3;
 
 /**
@@ -116,9 +124,10 @@ interface ArgusExtractFailResponse {
 
 /**
  * Perform a single argus extract-price attempt. POST
- * `${ARGUS_BASE_URL}/v1/extract-price` with bearer auth and a 45 s timeout.
- * Returns either a parsed outcome or a retryability verdict:
- * `{ ok: false, retryDecision }` shapes are internal — see `extractPrice`.
+ * `${ARGUS_BASE_URL}/v1/extract-price` with bearer auth and a generous per-
+ * attempt timeout (see EXTRACT_TIMEOUT_MS). Never throws: every outcome is a
+ * well-formed ExtractAttempt — `retryable-error` feeds the caller's backoff
+ * loop, `terminal-error` short-circuits it.
  */
 type ExtractAttempt =
   // Reuse the public discriminated ok shapes so narrowing at the call site
@@ -146,9 +155,19 @@ async function attemptArgusExtract(
     });
 
     if (!response.ok) {
+      // Auth/config failures will never succeed on retry — fail fast instead
+      // of burning MAX_RETRIES × backoff on a guaranteed-401 loop. Transient
+      // classes (5xx, 408, 429) stay retryable like any transport error.
+      const status = response.status;
+      if (!(status >= 500 || status === 408 || status === 429)) {
+        return {
+          kind: "terminal-error",
+          message: `Page fetch failed (argus HTTP ${status} ${response.statusText})`,
+        };
+      }
       return {
         kind: "retryable-error",
-        message: `argus HTTP ${response.status} ${response.statusText}`,
+        message: `argus HTTP ${status} ${response.statusText}`,
       };
     }
 
@@ -172,8 +191,12 @@ async function attemptArgusExtract(
       if (typeof priceRaw === "string") {
         // argus returns decimal-normalized 2dp strings ("599.99") so values
         // round-trip JSON cleanly; convert once here and reject garbage.
+        // Positive-only matches the old pipeline's z.number().positive()
+        // contract — Number("") === Number("0") === 0 must NOT pass as a real
+        // price, or a garbage payload becomes a $0.00 reading and a false
+        // "price dropped to $0" alert.
         price = Number(priceRaw);
-        if (!Number.isFinite(price)) {
+        if (!Number.isFinite(price) || price <= 0) {
           return { kind: "terminal-error", message: "Price extraction failed" };
         }
       } else if (priceRaw !== null && priceRaw !== undefined) {

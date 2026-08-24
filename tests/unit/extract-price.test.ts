@@ -223,6 +223,8 @@ describe("extractPrice", () => {
       price: null,
       name: "Widget",
     });
+    // Unavailable responses carry no pricing data at all.
+    expect(result.kind === "ok" && result.currency === null).toBe(true);
   });
 
   it("retries transport-class HTTP failures then reports 'Page fetch failed'", async () => {
@@ -237,4 +239,93 @@ describe("extractPrice", () => {
     expect(result).toEqual({ kind: "error", message: "Page fetch failed" });
     expect(calls).toHaveLength(3);
   }, 20_000);
+
+  it("rejects a zero price as a terminal extraction failure (no $0 readings)", async () => {
+    fakeFetchResponses([
+      () =>
+        argusJson({
+          ok: true,
+          url: URL,
+          available: true,
+          price: "0",
+          currency: "NZD",
+          name: null,
+          jsonld: null,
+        }),
+    ]);
+
+    const result = await extractPrice(URL, OPTS);
+
+    expect(result).toEqual({ kind: "error", message: "Price extraction failed" });
+  });
+
+  it("rejects an empty-string and a negative price the same way", async () => {
+    for (const badPrice of ["", "-5.00"]) {
+      fakeFetchResponses([
+        () =>
+          argusJson({
+            ok: true,
+            url: URL,
+            available: true,
+            price: badPrice,
+            currency: null,
+            name: null,
+            jsonld: null,
+          }),
+      ]);
+      const result = await extractPrice(URL, OPTS);
+      expect(result).toEqual({ kind: "error", message: "Price extraction failed" });
+    }
+  });
+
+  it("falls back to signature 'unknown' when argus omits block metadata", async () => {
+    fakeFetchResponses([
+      () => argusJson({ ok: false, reason: "blocked" }),
+      () =>
+        argusJson({
+          ok: true,
+          url: URL,
+          available: false,
+          price: null,
+          currency: null,
+          name: null,
+          jsonld: null,
+        }),
+    ]);
+
+    const result = await extractPrice(URL, OPTS);
+
+    // The first attempt's missing metadata defaulted to retryable:true, so a
+    // second attempt ran; its verdict surfaces with the conservative id.
+    expect(result).toMatchObject({ kind: "ok", available: false });
+  }, 15_000);
+
+  it("retries network-level failures then reports 'Page fetch failed'", async () => {
+    let i = 0;
+    const spy = vi.fn(async () => {
+      i += 1;
+      throw new TypeError("fetch failed");
+    });
+    vi.stubGlobal("fetch", spy);
+
+    const result = await extractPrice(URL, OPTS);
+
+    expect(result).toEqual({ kind: "error", message: "Page fetch failed" });
+    expect(i).toBe(3);
+  }, 20_000);
+
+  it("fails fast on auth errors instead of retrying a guaranteed-401 loop", async () => {
+    const { calls } = fakeFetchResponses([
+      () => new Response("unauthorized", { status: 401 }),
+    ]);
+
+    const result = await extractPrice(URL, OPTS);
+
+    expect(result.kind).toBe("error");
+    expect(
+      result.kind === "error" && result.message.includes("401"),
+    ).toBe(true);
+    expect(calls).toHaveLength(1);
+  });
 });
+
