@@ -14,10 +14,10 @@ import { MemoryRouter } from "react-router";
  * cache effects, no real mutations. The i18n hook is also mocked so the
  * assertions can match deterministic English strings.
  *
- * Focus: the Telegram bot token field. Other fields (AI base URL, poll
- * interval, AI API key, etc.) are out of scope, but the submit handler
- * validates interval and aiBaseUrl, so submit tests must keep those fields
- * valid.
+ * Focus: the Telegram bot token field. Since the 2026-08-25 extraction
+ * migration there is no in-app AI config anymore; the remaining fields are the
+ * poll interval (validated as a positive integer by the submit handler) and
+ * the bot token.
  */
 
 const { mockUseGlobalSettings, mockUseUpdateGlobalSettings } = vi.hoisted(
@@ -45,26 +45,6 @@ vi.mock("../../apps/web/src/lib/i18n", () => ({
         "adminSettings.intervalLabel": "Poll interval (minutes)",
         "adminSettings.intervalHint": "How often to check prices",
         "adminSettings.intervalInvalid": "Interval must be a positive integer",
-        "adminSettings.aiBaseUrlLabel": "AI Base URL",
-        "adminSettings.aiBaseUrlPlaceholder": "https://api.example.com/v1",
-        "adminSettings.aiBaseUrlHint": "OpenAI-compatible base URL",
-        "adminSettings.aiBaseUrlInvalid": "AI Base URL is invalid",
-        "adminSettings.aiApiKeyLabel": "AI API Key",
-        "adminSettings.aiApiKeyPlaceholder": "sk-...",
-        "adminSettings.aiApiKeyStored": "AI API key: {key}",
-        "adminSettings.aiApiKeyNone": "No AI API key configured",
-        "adminSettings.aiModelLabel": "AI Model",
-        "adminSettings.aiModelPlaceholder": "gpt-4",
-        "adminSettings.aiModelHint": "Model name",
-        "adminSettings.aiZenHostLabel": "AI Zen Host",
-        "adminSettings.aiZenHostPlaceholder": "opencode.ai",
-        "adminSettings.aiZenHostHint": "Zen host header",
-        "adminSettings.aiUserAgentLabel": "AI User Agent",
-        "adminSettings.aiUserAgentPlaceholder": "Mozilla/5.0...",
-        "adminSettings.aiUserAgentHint": "User-Agent header",
-        "adminSettings.aiClientHeaderLabel": "AI Client Header",
-        "adminSettings.aiClientHeaderPlaceholder": "cli",
-        "adminSettings.aiClientHeaderHint": "Client header value",
         "adminSettings.saveError": "Save failed",
         "adminSettings.saved": "Saved.",
         "adminSettings.saving": "Saving...",
@@ -89,14 +69,8 @@ const { AdminSettingsSection } = await import(
 );
 
 const defaultSettings = {
-  aiBaseUrl: "https://api.openai.com/v1",
-  aiApiKey: "",
-  aiModel: "gpt-4",
   pollIntervalDefaultMinutes: 60,
   telegramBotToken: "",
-  aiZenHost: "opencode.ai",
-  aiUserAgent: "",
-  aiClientHeader: "",
 };
 
 function renderSection() {

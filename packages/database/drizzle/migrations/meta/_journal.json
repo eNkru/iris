@@ -22,6 +22,13 @@
       "when": 1786787347939,
       "tag": "0002_light_gamora",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1787574393317,
+      "tag": "0003_rainy_meteorite",
+      "breakpoints": true
     }
   ]
 }

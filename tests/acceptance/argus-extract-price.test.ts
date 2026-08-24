@@ -10,12 +10,26 @@ const AKAMAI_URL = process.env.AKAMAI_URL ?? 'https://www.farmers.co.nz/product/
 
 // Increase timeout for slow network/argus responses (browser cold-start on
 // the first fetch after idle adds ~3-5s inside argus).
-const TEST_TIMEOUT_MS = 30_000;
+const TEST_TIMEOUT_MS = 45_000;
 
-type ArgusFetchResult =
-  | { ok: true; html: string; url: string }
-  | { ok: false; reason: 'blocked'; signature: string; retryable: boolean }
-  | { ok: false; reason: 'fetch_failed' | string };
+type ArgusExtractResult =
+  | {
+      ok: true;
+      source: 'jsonld' | 'ai';
+      url: string;
+      available: boolean;
+      price: string | null;
+      currency: string | null;
+      name: string | null;
+      jsonld: Record<string, unknown> | null;
+    }
+  | {
+      ok: false;
+      reason: 'blocked';
+      signature: string;
+      retryable: boolean;
+    }
+  | { ok: false; reason: 'fetch_failed' | 'extraction_failed' | string };
 
 // Bounded health-poll. Argus /health is unauthenticated and returns 200 as
 // soon as the service is up — the browser is lazy by design and may be
@@ -37,48 +51,24 @@ async function waitForArgusReady(url: string, timeoutMs = 60_000): Promise<void>
   throw new Error(`Argus at ${url} did not become healthy within ${timeoutMs}ms`);
 }
 
-async function fetchFromArgus(url: string): Promise<ArgusFetchResult> {
-  const res = await fetch(`${ARGUS_BASE_URL}/v1/fetch`, {
+async function extractFromArgus(url: string): Promise<ArgusExtractResult> {
+  const res = await fetch(`${ARGUS_BASE_URL}/v1/extract-price`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${ARGUS_API_TOKEN}`,
     },
-    body: JSON.stringify({ url, detectBlocked: true }),
-    signal: AbortSignal.timeout(50_000),
+    body: JSON.stringify({ url }),
+    signal: AbortSignal.timeout(60_000),
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Argus fetch failed with status ${res.status}: ${text}`);
+    throw new Error(`Argus extract failed with status ${res.status}: ${text}`);
   }
-  const body = (await res.json()) as {
-    ok?: boolean;
-    html?: unknown;
-    reason?: unknown;
-    signature?: unknown;
-    retryable?: unknown;
-  };
-
-  if (body.ok === true) {
-    if (typeof body.html !== 'string') {
-      throw new Error(`Argus returned non-string html: ${JSON.stringify(body)}`);
-    }
-    return { ok: true, html: body.html, url: typeof body.url === 'string' ? body.url : url };
-  }
-
-  const reason = typeof body.reason === 'string' ? body.reason : 'unknown';
-  if (reason === 'blocked') {
-    return {
-      ok: false,
-      reason: 'blocked',
-      signature: typeof body.signature === 'string' ? body.signature : 'unknown',
-      retryable: typeof body.retryable === 'boolean' ? body.retryable : true,
-    };
-  }
-  return { ok: false, reason };
+  return (await res.json()) as ArgusExtractResult;
 }
 
-describe('argus-fetch acceptance tests', () => {
+describe('argus-extract-price acceptance tests', () => {
   beforeAll(async () => {
     if (!ARGUS_API_TOKEN) {
       throw new Error(
@@ -89,29 +79,40 @@ describe('argus-fetch acceptance tests', () => {
     await waitForArgusReady(ARGUS_BASE_URL);
   });
 
-  it('fetches a plain (DataDome-protected) URL successfully', async () => {
-    const result = await fetchFromArgus(PLAIN_URL);
+  it('extracts a price from a plain (DataDome-protected) product page', async () => {
+    const result = await extractFromArgus(PLAIN_URL);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(typeof result.html).toBe('string');
-    expect(result.html.length).toBeGreaterThan(5_000);
+
+    expect(['jsonld', 'ai']).toContain(result.source);
+    expect(typeof result.url).toBe('string');
+    expect(typeof result.available).toBe('boolean');
+    // argus returns decimal-normalized 2dp strings — never floats.
+    if (result.price !== null) {
+      expect(typeof result.price).toBe('string');
+      expect(result.price).toMatch(/^\d+(\.\d{1,2})?$/);
+    }
+    if (result.source === 'jsonld' && typeof result.jsonld === 'object' && result.jsonld) {
+      // The rich Product node rides along on the deterministic path.
+      expect(Object.keys(result.jsonld).length).toBeGreaterThan(0);
+    }
   }, TEST_TIMEOUT_MS);
 
-  it('fetches an Akamai-protected URL and either passes or argus detects a known block', async () => {
-    const result = await fetchFromArgus(AKAMAI_URL);
+  it('handles an Akamai-protected URL: extracts, or reports a classified block', async () => {
+    const result = await extractFromArgus(AKAMAI_URL);
 
     if (result.ok) {
-      // Real page returned; expect non-trivial content
-      expect(result.html.length).toBeGreaterThan(5_000);
+      // Real page extracted — either a usable price or an explicit
+      // unavailable verdict from argus's extraction stages.
+      expect(typeof result.available).toBe('boolean');
       return;
     }
 
-    // Argus classified the page — it must be a recognised akamai-* signature
-    // with an explicit retryable verdict (the registry's per-request verdict).
+    // Blocked pages short-circuit BEFORE any model call and carry the
+    // registry signature + per-request retryable verdict.
     expect(result.reason).toBe('blocked');
     if (result.reason !== 'blocked') return;
     expect(result.signature).toMatch(/^akamai-/);
     expect(typeof result.retryable).toBe('boolean');
-    // Document the probabilistic pass: Akamai can also serve a real page on fresh attempts
   }, TEST_TIMEOUT_MS);
 });

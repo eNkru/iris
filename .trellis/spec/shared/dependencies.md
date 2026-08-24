@@ -69,10 +69,8 @@
 
 | Package | Version | Description |
 |---------|---------|-------------|
-| ai | ^5.x | Vercel AI SDK core |
-| @ai-sdk/react | ^2.x | AI SDK React hooks |
-| @ai-sdk/openai | ^2.x | OpenAI provider |
-| @ai-sdk/anthropic | ^2.x | Anthropic provider |
+| ai | removed 2026-08-25 | Price extraction moved to the argus service |
+
 
 ---
 

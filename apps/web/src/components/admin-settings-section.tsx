@@ -6,24 +6,19 @@ import { useI18n } from "../lib/i18n";
 import { Button, ErrorBox, Input, Label, Spinner } from "./ui";
 
 /**
- * Instance-level global settings (R6/R7, admin only): generic OpenAI-compatible
- * AI config (base URL + API key + model) + default poll interval + Telegram bot
- * token. The AI API key and the bot token are write-only (masked on read);
- * submitting an empty value leaves the stored secret unchanged.
+ * Instance-level global settings (R6/R7, admin only): default poll interval +
+ * Telegram bot token. Price extraction runs in the external argus service
+ * since 2026-08-25, so there is no in-app AI config anymore. The bot token is
+ * write-only (masked on read); submitting an empty value leaves the stored
+ * secret unchanged.
  */
 export function AdminSettingsSection() {
   const { t } = useI18n();
   const { data, isLoading, isError, error } = useGlobalSettings();
   const updateGlobalSettings = useUpdateGlobalSettings();
 
-  const [aiBaseUrl, setAiBaseUrl] = useState("https://api.openai.com/v1");
-  const [aiApiKey, setAiApiKey] = useState("");
-  const [aiModel, setAiModel] = useState("");
   const [pollInterval, setPollInterval] = useState("");
   const [botToken, setBotToken] = useState("");
-  const [aiZenHost, setAiZenHost] = useState("opencode.ai");
-  const [aiUserAgent, setAiUserAgent] = useState("");
-  const [aiClientHeader, setAiClientHeader] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -39,14 +34,8 @@ export function AdminSettingsSection() {
 
   useEffect(() => {
     if (data && !hasLoaded) {
-      setAiBaseUrl(data.settings.aiBaseUrl);
-      setAiModel(data.settings.aiModel);
       setPollInterval(data.settings.pollIntervalDefaultMinutes.toString());
-      setAiApiKey("");
       setBotToken("");
-      setAiZenHost(data.settings.aiZenHost);
-      setAiUserAgent(data.settings.aiUserAgent);
-      setAiClientHeader(data.settings.aiClientHeader);
       setHasLoaded(true);
     }
   }, [data, hasLoaded]);
@@ -63,24 +52,10 @@ export function AdminSettingsSection() {
     }
 
     try {
-      new URL(aiBaseUrl);
-    } catch {
-      setErrorMessage(t("adminSettings.aiBaseUrlInvalid"));
-      return;
-    }
-
-    try {
       await updateGlobalSettings.mutateAsync({
-        aiBaseUrl,
-        aiModel,
         pollIntervalDefaultMinutes: parsedInterval,
-        aiApiKey: aiApiKey.trim() === "" ? undefined : aiApiKey.trim(),
         telegramBotToken: botToken.trim() === "" ? undefined : botToken.trim(),
-        aiZenHost: aiZenHost.trim(),
-        aiUserAgent: aiUserAgent.trim(),
-        aiClientHeader: aiClientHeader.trim(),
       });
-      setAiApiKey("");
       setBotToken("");
       setSavedAt(Date.now());
     } catch (err) {
@@ -102,65 +77,6 @@ export function AdminSettingsSection() {
       ) : null}
       {!isLoading && !isError ? (
         <form onSubmit={onSubmit} className="max-w-md space-y-3">
-          <div>
-            <Label htmlFor="ai-base-url">{t("adminSettings.aiBaseUrlLabel")}</Label>
-            <Input
-              id="ai-base-url"
-              type="url"
-              required
-              placeholder={t("adminSettings.aiBaseUrlPlaceholder")}
-              value={aiBaseUrl}
-              onChange={(e) => {
-                setSavedAt(null);
-                setAiBaseUrl(e.target.value);
-              }}
-              disabled={updateGlobalSettings.isPending}
-            />
-            <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
-              {t("adminSettings.aiBaseUrlHint")}
-            </p>
-          </div>
-
-          <div>
-            <Label htmlFor="ai-api-key">{t("adminSettings.aiApiKeyLabel")}</Label>
-            <Input
-              id="ai-api-key"
-              type="password"
-              autoComplete="off"
-              placeholder={t("adminSettings.aiApiKeyPlaceholder")}
-              value={aiApiKey}
-              onChange={(e) => {
-                setSavedAt(null);
-                setAiApiKey(e.target.value);
-              }}
-              disabled={updateGlobalSettings.isPending}
-            />
-            <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
-              {data?.settings.aiApiKey
-                ? t("adminSettings.aiApiKeyStored", { key: data.settings.aiApiKey })
-                : t("adminSettings.aiApiKeyNone")}
-            </p>
-          </div>
-
-          <div>
-            <Label htmlFor="ai-model">{t("adminSettings.aiModelLabel")}</Label>
-            <Input
-              id="ai-model"
-              type="text"
-              required
-              placeholder={t("adminSettings.aiModelPlaceholder")}
-              value={aiModel}
-              onChange={(e) => {
-                setSavedAt(null);
-                setAiModel(e.target.value);
-              }}
-              disabled={updateGlobalSettings.isPending}
-            />
-            <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
-              {t("adminSettings.aiModelHint")}
-            </p>
-          </div>
-
           <div>
             <Label htmlFor="global-interval">
               {t("adminSettings.intervalLabel")}
@@ -203,60 +119,6 @@ export function AdminSettingsSection() {
                     token: data.settings.telegramBotToken,
                   })
                 : t("adminSettings.botTokenNone")}
-            </p>
-          </div>
-
-          <div>
-            <Label htmlFor="ai-zen-host">{t("adminSettings.aiZenHostLabel")}</Label>
-            <Input
-              id="ai-zen-host"
-              type="text"
-              placeholder={t("adminSettings.aiZenHostPlaceholder")}
-              value={aiZenHost}
-              onChange={(e) => {
-                setSavedAt(null);
-                setAiZenHost(e.target.value);
-              }}
-              disabled={updateGlobalSettings.isPending}
-            />
-            <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
-              {t("adminSettings.aiZenHostHint")}
-            </p>
-          </div>
-
-          <div>
-            <Label htmlFor="ai-user-agent">{t("adminSettings.aiUserAgentLabel")}</Label>
-            <Input
-              id="ai-user-agent"
-              type="text"
-              placeholder={t("adminSettings.aiUserAgentPlaceholder")}
-              value={aiUserAgent}
-              onChange={(e) => {
-                setSavedAt(null);
-                setAiUserAgent(e.target.value);
-              }}
-              disabled={updateGlobalSettings.isPending}
-            />
-            <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
-              {t("adminSettings.aiUserAgentHint")}
-            </p>
-          </div>
-
-          <div>
-            <Label htmlFor="ai-client-header">{t("adminSettings.aiClientHeaderLabel")}</Label>
-            <Input
-              id="ai-client-header"
-              type="text"
-              placeholder={t("adminSettings.aiClientHeaderPlaceholder")}
-              value={aiClientHeader}
-              onChange={(e) => {
-                setSavedAt(null);
-                setAiClientHeader(e.target.value);
-              }}
-              disabled={updateGlobalSettings.isPending}
-            />
-            <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
-              {t("adminSettings.aiClientHeaderHint")}
             </p>
           </div>
 

@@ -29,14 +29,12 @@ export const getUserSettings = protectedProcedure
       settings: row
         ? {
             userId: row.userId,
-            aiModelOverride: row.aiModelOverride,
             pollIntervalDefaultMinutes: row.pollIntervalDefaultMinutes,
             createdAt: row.createdAt,
             updatedAt: row.updatedAt,
           }
         : {
             userId: context.user.id,
-            aiModelOverride: null,
             pollIntervalDefaultMinutes: null,
             createdAt: null,
             updatedAt: null,

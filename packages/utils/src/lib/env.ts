@@ -24,26 +24,6 @@ export const envSchema = z.object({
   // better-auth session signing secret. MUST be replaced in production.
   BETTER_AUTH_SECRET: z.string().min(1).default("dev-secret-change-me"),
 
-  // AI config — generic OpenAI-compatible endpoint. These are build-time
-  // fallbacks; instance-level config (base URL, API key, model) is admin-editable
-  // and stored in `global_settings`. The pipeline resolves DB → env fallback.
-  AI_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
-  AI_API_KEY: z.string().default(""),
-  AI_MODEL: z.string().default("gpt-4o-mini"),
-  AI_EXTRACT_CONCURRENCY: z.coerce.number().int().positive().default(1),
-  AI_EXTRACT_MIN_INTERVAL_MS: z.coerce.number().int().nonnegative().default(2_000),
-
-  // AI client identification headers — sent only when the base URL hostname
-  // matches AI_ZEN_HOST. Lets the admin update the User-Agent / client header
-  // when OpenCode Zen bumps versions or changes its identification scheme,
-  // without a code change. Stored in `global_settings` (admin-editable); these
-  // env vars are the boot-time fallback (DB → env).
-  AI_ZEN_HOST: z.string().default("opencode.ai"),
-  AI_USER_AGENT: z.string().default(
-    "opencode/1.18.12 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.13",
-  ),
-  AI_CLIENT_HEADER: z.string().default("cli"),
-
   // Telegram alert channel
   TELEGRAM_BOT_TOKEN: z.string().default(""),
 

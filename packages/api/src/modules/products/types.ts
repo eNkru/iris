@@ -110,7 +110,7 @@ export const checkPriceResultSchema = z.discriminatedUnion("status", [
     status: z.literal("changed"),
     oldPrice: z.number().nullable(),
     newPrice: z.number(),
-    currency: z.string(),
+    currency: z.string().nullable(),
     alertDispatched: z.boolean(),
   }),
   z.object({

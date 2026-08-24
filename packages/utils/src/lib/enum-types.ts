@@ -19,6 +19,4 @@ export const LANGUAGE_VALUES = ["en", "zh"] as const;
 export const languageZodSchema = z.enum(LANGUAGE_VALUES);
 export type Language = z.infer<typeof languageZodSchema>;
 
-// AI config is generic OpenAI-compatible (base URL + API key + model); there is
-// no provider enum. See packages/prices/src/pipeline/ai-extract.ts and
-// .trellis/spec/backend/ai-sdk-integration.md.
+

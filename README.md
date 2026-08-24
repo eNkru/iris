@@ -9,7 +9,7 @@ Self-hosted price tracking & alert app. Add products, let Iris watch their price
 - **Product dashboard** — track products with current price, price history charts, and per-product status (OK / needs attention / blocked)
 - **Price-drop alerts** — configurable alert rules evaluated on every price check
 - **Alert channels** — Email and Telegram notifications, plus periodic summaries
-- **AI-powered extraction** — prices are extracted from product pages by any OpenAI-compatible model (OpenAI, OpenRouter, a local Ollama server, …); instance-level AI settings are admin-editable at runtime
+- **Price extraction** — prices are extracted by the argus service: deterministic schema.org JSON-LD parsing first, with an optional LLM fallback configured on the argus side (no model runs inside Iris)
 - **Anti-bot fetching** — pages are fetched through an anti-detect [Camoufox](https://camoufox.com) browser hosted by the standalone **argus** service, so pages behind DataDome / Cloudflare / Akamai challenges still work
 - **Magic-link auth** — email magic-link login via better-auth, with a bootstrapped admin user
 - **Scheduler** — an in-process scheduler loop with a per-product single-flight guard
@@ -23,7 +23,7 @@ Self-hosted price tracking & alert app. Add products, let Iris watch their price
 | Auth | better-auth (magic link, SMTP) |
 | Database | SQLite + Drizzle ORM + better-sqlite3 |
 | Runtime | One Node image (single Hono process) |
-| Price pipeline | Argus fetch service (anti-detect Camoufox) + AI SDK (OpenAI-compatible) |
+| Price pipeline | Argus service (anti-detect Camoufox fetch + price extraction) |
 | Notifications | SMTP (nodemailer), Telegram Bot API |
 
 ## Repository layout
@@ -37,7 +37,7 @@ packages/
   api/            oRPC router, procedures, middleware
   auth/           better-auth setup, SMTP magic-link mailer, admin bootstrap
   database/       SQLite Drizzle schema, migrations, queries, seed script
-  prices/         price pipeline (fetch → AI extract → alert rules), scheduler, notifications
+  prices/         price pipeline (extract via argus → alert rules), scheduler, notifications
   utils/          shared helpers and environment validation
 Dockerfile        Single Node image (page fetching is external: argus)
 ```
@@ -47,7 +47,7 @@ Dockerfile        Single Node image (page fetching is external: argus)
 The recommended deployment is one container with one persistent SQLite volume. The image runs the Hono web server and scheduler as a single Node process; migrations run automatically on startup. Page fetching requires a reachable **argus** service (deployed from the argus repo) — set `ARGUS_BASE_URL` and `ARGUS_API_TOKEN` accordingly.
 
 ```bash
-cp .env.example .env   # adjust secrets (BETTER_AUTH_SECRET, SMTP, AI_API_KEY, ARGUS_API_TOKEN, …)
+cp .env.example .env   # adjust secrets (BETTER_AUTH_SECRET, SMTP, ARGUS_API_TOKEN, …)
 docker compose up --build -d
 ```
 
@@ -96,11 +96,10 @@ Copy `.env.example` to `.env` and adjust. The important ones:
 | `BETTER_AUTH_SECRET` | Session signing secret — always override in production (`openssl rand -base64 32`) |
 | `DATABASE_PATH` | SQLite database path (default `./data/iris.db`; Docker uses `/app/data/iris.db`) |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | SMTP server for magic-link login emails |
-| `AI_BASE_URL` / `AI_API_KEY` / `AI_MODEL` | Any OpenAI-compatible endpoint; instance-level settings are admin-editable at runtime |
+| `ARGUS_BASE_URL` | URL of the argus service, which owns page fetching **and** price extraction (JSON-LD first, optional LLM fallback; default `http://localhost:8000`) |
+| `ARGUS_API_TOKEN` | Bearer token for argus `/v1/*` routes; must match one of argus's `ARGUS_API_TOKENS` |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot for the alert channel |
 | `SCHEDULER_TICK_MS` | How often the scheduler looks for due products (default 30 s) |
-| `ARGUS_BASE_URL` | URL of the argus fetch service (default `http://localhost:8000`) |
-| `ARGUS_API_TOKEN` | Bearer token for argus `/v1/*` routes; must match one of argus's `ARGUS_API_TOKENS` |
 
 Existing Postgres data is not migrated automatically. Re-add tracked products or perform a deliberate manual export/import before switching deployments.
 

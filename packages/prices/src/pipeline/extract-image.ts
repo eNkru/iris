@@ -203,6 +203,41 @@ function resolveUrl(url: string, baseUrl: string): string {
   }
 }
 
+/**
+ * Derive a product image URL from argus's returned schema.org Product node
+ * (`/v1/extract-price` response `jsonld` field). Since the 2026-08-25
+ * extraction migration iris no longer fetches page HTML, so the former
+ * og:image / twitter:image meta-tag scraping is gone — the structured node's
+ * `image` field is the remaining source.
+ *
+ * Tolerant per schema.org: `image` may be a URL string, an array of URL
+ * strings, or ImageObject nodes (`{url}` / `{contentUrl}`), singly or in an
+ * array. The first candidate that resolves to an absolute http(s) URL wins;
+ * relative URLs are resolved against `baseUrl` (the post-redirect final page
+ * URL from argus). Returns `null` when absent/unusable — callers treat that
+ * as a best-effort skip, never a check failure.
+ */
+export function imageUrlFromProductNode(
+  node: Record<string, unknown> | null | undefined,
+  baseUrl: string,
+): string | null {
+  if (!node) return null;
+  const image = node["image"];
+  if (image === null || image === undefined) return null;
+  const candidates = Array.isArray(image) ? image : [image];
+  for (const candidate of candidates) {
+    let raw: unknown = candidate;
+    if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+      const obj = candidate as Record<string, unknown>;
+      raw = obj["url"] ?? obj["contentUrl"];
+    }
+    if (typeof raw !== "string" || raw.length === 0) continue;
+    const resolved = resolveUrl(raw, baseUrl);
+    if (/^https?:\/\//i.test(resolved)) return resolved;
+  }
+  return null;
+}
+
 function getImagesDir(): string {
   return getEnv().IMAGES_DIR;
 }

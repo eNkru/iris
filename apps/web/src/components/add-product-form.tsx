@@ -60,7 +60,11 @@ export function AddProductForm() {
       {createProduct.data?.check.status === "changed" ? (
         <p className="text-sm text-emerald-700 dark:text-emerald-400">
           {t("addProduct.addedChanged", {
-            price: `${createProduct.data.check.currency} ${createProduct.data.check.newPrice.toFixed(2)}`,
+            price: `${
+              createProduct.data.check.currency
+                ? `${createProduct.data.check.currency} `
+                : ""
+            }${createProduct.data.check.newPrice.toFixed(2)}`,
           })}
         </p>
       ) : null}

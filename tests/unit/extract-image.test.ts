@@ -13,6 +13,7 @@ process.env.IMAGES_DIR = ORIGINAL_IMAGES_DIR;
 import { resetEnvCache } from "@iris/utils";
 import {
   downloadProductImage,
+  imageUrlFromProductNode,
   validateImageBuffer,
 } from "../../packages/prices/src/pipeline/extract-image";
 
@@ -300,4 +301,57 @@ describe("downloadProductImage", () => {
     expect(filename).toBeNull();
     expect(calls).toHaveLength(1);
   }, 8_000);
+});
+
+describe("imageUrlFromProductNode", () => {
+  const BASE = "https://shop.example/p/1";
+
+  it("returns null for null/undefined nodes or missing image", () => {
+    expect(imageUrlFromProductNode(null, BASE)).toBeNull();
+    expect(imageUrlFromProductNode(undefined, BASE)).toBeNull();
+    expect(imageUrlFromProductNode({ "@type": "Product" }, BASE)).toBeNull();
+    expect(imageUrlFromProductNode({ image: null }, BASE)).toBeNull();
+  });
+
+  it("accepts a plain URL string", () => {
+    expect(
+      imageUrlFromProductNode({ image: "https://img.test/a.jpg" }, BASE),
+    ).toBe("https://img.test/a.jpg");
+  });
+
+  it("accepts arrays of URL strings (first wins)", () => {
+    expect(
+      imageUrlFromProductNode(
+        { image: ["https://img.test/1.jpg", "https://img.test/2.jpg"] },
+        BASE,
+      ),
+    ).toBe("https://img.test/1.jpg");
+  });
+
+  it("accepts ImageObject nodes via url and contentUrl", () => {
+    expect(
+      imageUrlFromProductNode({ image: { url: "https://img.test/o.jpg" } }, BASE),
+    ).toBe("https://img.test/o.jpg");
+    expect(
+      imageUrlFromProductNode(
+        { image: [{ contentUrl: "https://img.test/c.jpg" }] },
+        BASE,
+      ),
+    ).toBe("https://img.test/c.jpg");
+  });
+
+  it("resolves relative URLs against the final page URL", () => {
+    expect(
+      imageUrlFromProductNode({ image: "/img/rel.jpg" }, BASE),
+    ).toBe("https://shop.example/img/rel.jpg");
+  });
+
+  it("skips garbage entries and returns null when nothing resolves", () => {
+    expect(
+      imageUrlFromProductNode(
+        { image: [42, { contentUrl: "javascript:alert(1)" }, ""] },
+        BASE,
+      ),
+    ).toBeNull();
+  });
 });

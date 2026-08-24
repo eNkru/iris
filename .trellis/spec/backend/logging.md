@@ -175,27 +175,13 @@ export async function processOrderBatch(orderIds: string[]) {
 }
 ```
 
-## AI SDK Telemetry
+## AI SDK Telemetry (removed 2026-08-25)
 
-When using the Vercel AI SDK, enable telemetry for token tracking:
+Iris no longer runs the Vercel AI SDK — price extraction moved to the external
+argus service. If an LLM integration ever returns, re-enable provider
+telemetry (`experimental_telemetry`) for token tracking; the structured-logger
+conventions above are unchanged.
 
-```typescript
-import { generateText } from "ai";
-import { openai } from "@ai-sdk/openai";
-
-const result = await generateText({
-  model: openai("gpt-4o"),
-  prompt: userPrompt,
-  experimental_telemetry: {
-    isEnabled: true,
-    functionId: "classify-content",
-    metadata: {
-      userId,
-      contentLength: content.length,
-    },
-  },
-});
-```
 
 ### Telemetry Metadata
 

@@ -7,8 +7,7 @@ import {
 } from "../types";
 
 /**
- * Upsert the current user's settings. The reserved `aiModelOverride` field is
- * accepted but intentionally not exposed in the MVP UI (R6 — schema-ready).
+ * Upsert the current user's settings.
  */
 export const updateUserSettings = protectedProcedure
   .route({
@@ -21,9 +20,6 @@ export const updateUserSettings = protectedProcedure
   .output(getUserSettingsOutputSchema)
   .handler(async ({ input, context }) => {
     const set: Partial<typeof userSettings.$inferSelect> = { updatedAt: new Date() };
-    if (input.aiModelOverride !== undefined) {
-      set.aiModelOverride = input.aiModelOverride;
-    }
     if (input.pollIntervalDefaultMinutes !== undefined) {
       set.pollIntervalDefaultMinutes = input.pollIntervalDefaultMinutes;
     }
@@ -43,7 +39,6 @@ export const updateUserSettings = protectedProcedure
         reason: "Settings updated",
         settings: {
           userId: context.user.id,
-          aiModelOverride: set.aiModelOverride ?? null,
           pollIntervalDefaultMinutes: set.pollIntervalDefaultMinutes ?? null,
           createdAt: null,
           updatedAt: null,
@@ -56,7 +51,6 @@ export const updateUserSettings = protectedProcedure
       reason: "Settings updated",
       settings: {
         userId: row.userId,
-        aiModelOverride: row.aiModelOverride,
         pollIntervalDefaultMinutes: row.pollIntervalDefaultMinutes,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,

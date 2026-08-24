@@ -50,14 +50,3 @@ export const alertRulesSchema = z
   .nullable();
 export type AlertRules = z.infer<typeof alertRulesSchema>;
 
-/**
- * Reserved per-user AI model override (R6). `null` = use global config.
- * Schema-ready for a later phase; not exposed in the MVP UI. Only the model is
- * overridable per user — base URL and API key are instance-level.
- */
-export const aiModelOverrideSchema = z
-  .object({
-    model: z.string().min(1).optional(),
-  })
-  .nullable();
-export type AiModelOverride = z.infer<typeof aiModelOverrideSchema>;

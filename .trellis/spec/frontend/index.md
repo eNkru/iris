@@ -12,7 +12,6 @@
 - **API**: oRPC (OpenAPI RPC), React Query (TanStack Query)
 - **URL State**: nuqs (generic React adapter)
 - **Auth**: better-auth
-- **AI**: Vercel AI SDK (@ai-sdk/react)
 
 ---
 
@@ -29,7 +28,7 @@
 | [directory-structure.md](./directory-structure.md)    | Project structure and module conventions             | Reference     |
 | [type-safety.md](./type-safety.md)                   | TypeScript guidelines, type inference, Zod           | Reference     |
 | [css-layout.md](./css-layout.md)                     | CSS patterns, dark mode vars, flexbox, responsive     | Reference     |
-| [ai-sdk-integration.md](./ai-sdk-integration.md)     | useChat hook, streaming, tool call handling           | Reference     |
+| [ai-sdk-integration.md](./ai-sdk-integration.md)     | REMOVED 2026-08-25 — no client AI surface; tombstone only | Historical reference |
 | [deployment.md](./deployment.md)                     | Instrumentation/edge-runtime guard, Docker deploy     | Reference     |
 | [quality.md](./quality.md)                           | Pre-commit checklist and code quality standards      | Reference     |
 
@@ -54,7 +53,6 @@
 | Manage application state    | [state-management.md](./state-management.md)       |
 | Build UI components         | [components.md](./components.md)                   |
 | Ensure type safety          | [type-safety.md](./type-safety.md)                 |
-| Integrate AI features       | [ai-sdk-integration.md](./ai-sdk-integration.md)   |
 | Handle CSS & layout         | [css-layout.md](./css-layout.md)                   |
 
 ### Before Committing

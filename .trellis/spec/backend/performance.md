@@ -147,17 +147,17 @@ const result = await fetchWithRetry(
 );
 ```
 
-Price extraction (`aiExtractPrice`) uses this same formula plus a process-wide
-`pLimit` and a min-interval gap. Disable the AI SDK's own retries
-(`maxRetries: 0`) or they burst the quota before this backoff runs. Full
-contract: `ai-sdk-integration.md` §6 Scenario: Extraction throttle.
+Price extraction runs in the argus service since 2026-08-25; iris's
+`extract-price.ts` client wraps it with the same backoff formula plus a
+process-wide `pLimit(5)` budget. Blocked responses honor argus's per-signature
+`retryable` verdict; `extraction_failed` is terminal (no retry — argus has
+already exhausted its own internal LLM retries). The LLM-side throttle
+(concurrency + min-interval) is configured on the argus side (`ARGUS_AI_*`).
 
-> Note: the extract path uses the uncapped formula above (`2 ** attempt * 1000 +
-> random * 1000`) and does **not** apply the `RetryConfig` `maxDelay` cap below.
-> The richer `RetryConfig` shape is the intended future contract for generic
-> outbound HTTP; extraction deliberately stays simpler (3 attempts, ~2–9 s).
-> Concurrency is boot-time only (the limiter is memoized on first use); only
-> `AI_EXTRACT_MIN_INTERVAL_MS` is live-tunable.
+> Note: iris's extract client uses the uncapped formula above (`2 ** attempt *
+> 1000 + random * 1000`) with 3 attempts (~1–9 s) and does **not** apply the
+> `RetryConfig` `maxDelay` cap below. The richer `RetryConfig` shape remains
+> the intended future contract for generic outbound HTTP.
 
 ### Backoff Configuration
 

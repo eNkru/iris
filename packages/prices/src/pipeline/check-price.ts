@@ -1,13 +1,11 @@
 import { eq } from "drizzle-orm";
 import { db } from "@iris/database";
 import { priceReadings, products } from "@iris/database/drizzle/schema/sqlite";
-import { getGlobalSettings } from "@iris/database/drizzle/queries";
 import { logger } from "@iris/utils";
 import { dispatchPriceAlert } from "../notifications/dispatch";
 import { roundToCent, shouldAlert } from "./alert-rules";
-import { resolveAiConfig, aiExtractPrice } from "./ai-extract";
-import { fetchPage } from "./fetch-page";
-import { extractProductImageUrl, downloadProductImage } from "./extract-image";
+import { extractPrice } from "./extract-price";
+import { imageUrlFromProductNode, downloadProductImage } from "./extract-image";
 import type { CheckPriceResult } from "./types";
 
 type ProductRow = typeof products.$inferSelect;
@@ -16,19 +14,23 @@ const inflightChecks = new Map<string, Promise<CheckPriceResult>>();
 
 /**
  * checkPrice(productId) — the synchronous price-check pipeline (R8):
- * visit page → AI extract price → store → compare with last price → alert if
- * changed. Called by both the synchronous RPC (create/checkNow) and the
- * scheduler.
+ * extract via argus → store → compare with last price → alert if changed.
+ * Called by both the synchronous RPC (create/checkNow) and the scheduler.
+ *
+ * Since the 2026-08-25 extraction migration, argus's `POST /v1/extract-price`
+ * owns the whole visit-and-extract stage (anti-detect navigation, blocked
+ * classification, JSON-LD parse, internal LLM fallback); iris no longer
+ * fetches HTML or runs any model itself.
  *
  * ## Transactionality
  *
- * Network/AI calls (fetch + generateText) run OUTSIDE any database
- * transaction so a slow page or model does not hold a connection. The
+ * Network calls (the extract request + image download) run OUTSIDE any
+ * database transaction so a slow page does not hold a connection. The
  * read-modify-write — load the product row, insert a `price_readings` row when
  * the price changed, update `currentPrice`/`lastCheckedAt` — runs inside a
  * single transaction. Concurrent checks of the same product (scheduler tick +
  * manual check-now) are coalesced by the module-level single-flight mutex, so
- * only one fetch/extraction/write pipeline runs for a product at a time.
+ * only one extract/write pipeline runs for a product at a time.
  */
 export function checkPrice(productId: string): Promise<CheckPriceResult> {
   const existing = inflightChecks.get(productId);
@@ -53,46 +55,32 @@ async function runCheckPrice(productId: string): Promise<CheckPriceResult> {
     return { status: "not_found" };
   }
 
-  // --- Network / AI (outside any DB transaction) ---
-  const page = await fetchPage(product.url, { productId });
-  if (!page) {
-    // `null` = transport failed after retries (sidecar down, network error,
-    // non-JSON). This is the generic transport failure, not an anti-bot block.
+  // --- Network / extraction (outside any DB transaction) ---
+  const extraction = await extractPrice(product.url, { productId });
+
+  if (extraction.kind === "error") {
+    // Transport failed after retries (argus down, network error, non-JSON) or
+    // argus could not extract a price. These are the legacy operator-facing
+    // strings — never an anti-bot misattribution.
     await touchLastCheckedAt(productId, now);
-    return { status: "failed", reason: "Page fetch failed" };
+    return { status: "failed", reason: extraction.message };
   }
 
   // Anti-bot challenge / deny page (e.g. Akamai `/WAF_Deny_Page/`, DataDome
-  // captcha, Cloudflare "Just a moment…"): short-circuit before the AI call —
-  // the page carries no price, so extraction would waste a model call and mask
-  // the block as "unavailable". Surfacing the clear reason lets the operator
-  // distinguish anti-bot from genuine stock-out (AC3).
-  if (page.kind === "blocked") {
+  // captcha, Cloudflare "Just a moment…") — classified inside argus before
+  // any model call is spent, and surfaced here so the operator can distinguish
+  // anti-bot from genuine stock-out (AC3).
+  if (extraction.kind === "blocked") {
     await touchLastCheckedAt(productId, now);
     logger.warn("Page blocked by anti-bot WAF", {
       productId,
       url: product.url,
-      signature: page.signature,
+      signature: extraction.signature,
     });
     return {
       status: "failed",
-      reason: `Anti-bot WAF deny page (${page.signature}) — retailer blocks automated access.`,
+      reason: `Anti-bot WAF deny page (${extraction.signature}) — retailer blocks automated access.`,
     };
-  }
-
-  const settings = await getGlobalSettings();
-  const config = resolveAiConfig(settings);
-  // Pass the already-fetched HTML so extraction is a single generateText call
-  // (no multi-step tool loop). That avoids a DeepSeek thinking-mode failure
-  // where step 2 drops `reasoning_content` (ai-sdk-integration.md §1e) and
-  // skips a redundant second Camoufox fetch of the same URL.
-  const extraction = config
-    ? await aiExtractPrice({ url: page.url, productId, config, html: page.html })
-    : null;
-
-  if (!extraction) {
-    await touchLastCheckedAt(productId, now);
-    return { status: "failed", reason: "Price extraction failed" };
   }
 
   if (!extraction.available) {
@@ -105,9 +93,12 @@ async function runCheckPrice(productId: string): Promise<CheckPriceResult> {
   // --- Image capture (best-effort, outside the DB transaction) ---
   // Only capture when the product doesn't already have an image, so
   // routine re-checks don't re-download the same image on every tick.
+  // Source is argus's returned schema.org Product node (`jsonld`) — iris no
+  // longer fetches HTML; on the AI-fallback path jsonld is null and capture
+  // is skipped for this round.
   let imageFilename: string | null = null;
   if (!product.imagePath) {
-    const imageUrl = extractProductImageUrl(page.html, page.url);
+    const imageUrl = imageUrlFromProductNode(extraction.jsonld, extraction.url);
     if (imageUrl) {
       logger.info("Attempting product image download", {
         productId,
@@ -121,7 +112,7 @@ async function runCheckPrice(productId: string): Promise<CheckPriceResult> {
         });
       }
     } else {
-      logger.warn("No product image URL found in page HTML", {
+      logger.info("No product image in extraction result", {
         productId,
         url: product.url,
       });

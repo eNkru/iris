@@ -99,9 +99,6 @@ SMTP_PORT=587
 SMTP_USER=...
 SMTP_PASS=...
 SMTP_FROM=noreply@yourdomain
-AI_BASE_URL=https://api.openai.com/v1
-AI_API_KEY=...
-AI_MODEL=gpt-4o-mini
 TELEGRAM_BOT_TOKEN=
 SCHEDULER_TICK_MS=30000
 ARGUS_BASE_URL=http://<argus-host>:8000
@@ -110,9 +107,8 @@ ARGUS_API_TOKEN=<token matching argus ARGUS_API_TOKENS>
 
 `DATABASE_PATH` must point at the mounted dir `/app/data/iris.db`. Do NOT set
 `DATABASE_PATH` to a value outside `/app/data`, or the DB lives in container
-scratch space and is lost on recreate. Runtime AI settings are admin-editable
-from the app and stored in the DB, so `AI_BASE_URL`/`AI_API_KEY` here are
-first-boot fallbacks.
+scratch space and is lost on recreate. Price extraction runs inside argus —
+configure its AI/LLM fallback in the **argus** `.env` (`ARGUS_AI_*`), not here.
 
 ## 5. Load the image and start
 

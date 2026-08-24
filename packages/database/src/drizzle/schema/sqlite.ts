@@ -8,7 +8,7 @@ import {
   text,
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
-import type { AiModelOverride, AlertRules, ChannelType } from "@iris/utils";
+import type { AlertRules, ChannelType } from "@iris/utils";
 import { CHANNEL_TYPE_VALUES } from "@iris/utils";
 import { user } from "./auth";
 
@@ -92,7 +92,6 @@ export const userSettings = sqliteTable("user_settings", {
   userId: text("userId")
     .primaryKey()
     .references(() => user.id, { onDelete: "cascade" }),
-  aiModelOverride: text("aiModelOverride", { mode: "json" }).$type<AiModelOverride>(),
   pollIntervalDefaultMinutes: integer("pollIntervalDefaultMinutes"),
   createdAt: timestamp("createdAt").notNull(),
   updatedAt: timestamp("updatedAt").notNull(),
@@ -100,14 +99,8 @@ export const userSettings = sqliteTable("user_settings", {
 
 export const globalSettings = sqliteTable("global_settings", {
   id: integer("id").primaryKey(),
-  aiBaseUrl: text("aiBaseUrl").notNull().default("https://api.openai.com/v1"),
-  aiApiKey: text("aiApiKey").notNull().default(""),
-  aiModel: text("aiModel").notNull().default("gpt-4o-mini"),
   pollIntervalDefaultMinutes: integer("pollIntervalDefaultMinutes").notNull().default(60),
   telegramBotToken: text("telegramBotToken"),
-  aiZenHost: text("aiZenHost").notNull().default("opencode.ai"),
-  aiUserAgent: text("aiUserAgent").notNull().default("opencode/1.18.12 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.13"),
-  aiClientHeader: text("aiClientHeader").notNull().default("cli"),
   createdAt: timestamp("createdAt").notNull(),
   updatedAt: timestamp("updatedAt").notNull(),
 });

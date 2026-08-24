@@ -21,7 +21,7 @@
 | [authentication.md](./authentication.md)             | better-auth, sessions, OAuth, protected procedures | Auth-related features              |
 | [logging.md](./logging.md)                           | Structured logging, Sentry tracing, telemetry      | Debugging, observability           |
 | [performance.md](./performance.md)                   | Concurrency, caching, batch processing, streaming  | Performance optimization           |
-| [ai-sdk-integration.md](./ai-sdk-integration.md)     | Vercel AI SDK, tool calling, prompt patterns       | AI-powered features                |
+| [ai-sdk-integration.md](./ai-sdk-integration.md)     | REMOVED 2026-08-25 — extraction moved to argus; tombstone only | Historical reference |
 | [notifications-telegram.md](./notifications-telegram.md) | Telegram adapter, HTML escaping, summary delivery | Telegram/summary work          |
 | [quality.md](./quality.md)                           | Pre-commit checklist for backend code              | Before committing                  |
 
@@ -101,13 +101,7 @@
 
 | Task                        | File                                           |
 | --------------------------- | ---------------------------------------------- |
-| generateText / generateObject | [ai-sdk-integration.md](./ai-sdk-integration.md) |
-| Streaming (streamText)      | [ai-sdk-integration.md](./ai-sdk-integration.md) |
-| Tool calling                | [ai-sdk-integration.md](./ai-sdk-integration.md) |
-| Telemetry configuration     | [ai-sdk-integration.md](./ai-sdk-integration.md) |
-| Prompt engineering          | [ai-sdk-integration.md](./ai-sdk-integration.md) |
-| AI error handling           | [ai-sdk-integration.md](./ai-sdk-integration.md) |
-| Extraction throttle (429)   | [ai-sdk-integration.md](./ai-sdk-integration.md) |
+| Price extraction contract   | [performance.md](./performance.md) (argus `/v1/extract-price`) |
 
 ---
 
@@ -126,7 +120,6 @@
 | **Service modules follow domain layout**                         | [directory-structure.md](./directory-structure.md) |
 | **Use `Promise.all`** for independent parallel operations        | [performance.md](./performance.md)                 |
 | **Use `p-limit`** for external API concurrency control           | [performance.md](./performance.md)                 |
-| **Always enable AI telemetry** for token tracking                | [ai-sdk-integration.md](./ai-sdk-integration.md)   |
 | **Cast `::jsonb`** for PostgreSQL JSON operations                | [database.md](./database.md)                       |
 | **Double-quote camelCase** column names in raw SQL               | [database.md](./database.md)                       |
 | **Use structured context** in logs - no string interpolation     | [logging.md](./logging.md)                         |
