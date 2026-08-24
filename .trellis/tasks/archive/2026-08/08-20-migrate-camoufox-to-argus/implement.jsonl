@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/performance.md", "reason": "Shared Limiter Pattern, fetch transport envelope, sidecar/argus contract notes — the layer this migration lives in"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Discriminated-union patterns for the FetchAttempt/FetchPageResult rework"}
+{"file": ".trellis/spec/backend/quality.md", "reason": "Pre-commit checklist for backend changes"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Change spans env config, pipeline clients, deploy, tests — cross-layer boundary guide"}
