@@ -249,11 +249,24 @@ const server = serve(
 
 /**
  * Graceful shutdown: stop the scheduler loop and close the HTTP server.
- * Mirrors the `onClose()` pattern from `instrumentation.ts`.
+ * Mirrors the `onClose()` pattern from `instrumentation.ts`. A hard deadline
+ * (`SHUTDOWN_FORCE_EXIT_MS`) force-exits the process if `server.close()` is
+ * stuck waiting on a hung in-flight connection — the orchestrator would
+ * eventually SIGKILL, but an explicit timeout gives a cleaner, faster exit.
  */
 function shutdown(): void {
   stopScheduler();
+
+  const forceExitMs = getEnv().SHUTDOWN_FORCE_EXIT_MS;
+  const forceExitTimer = setTimeout(() => {
+    logger.error("Graceful shutdown timed out; forcing exit", {
+      forceExitMs,
+    });
+    process.exit(1);
+  }, forceExitMs);
+
   server.close(() => {
+    clearTimeout(forceExitTimer);
     logger.info("Server stopped");
     process.exit(0);
   });
