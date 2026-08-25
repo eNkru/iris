@@ -48,7 +48,26 @@ export const createProduct = protectedProcedure
       });
     }
 
-    const check = await checkPrice(created.id);
+    let check;
+    try {
+      check = await checkPrice(created.id);
+    } catch (error) {
+      // The external argus call threw (network/timeout/unhandled rejection
+      // inside @iris/prices). Roll back the just-inserted row so the list never
+      // shows a product without a first price reading, and so a retry doesn't
+      // create a duplicate orphan (there's no (userId, url) unique constraint).
+      await db.delete(products).where(eq(products.id, created.id));
+      logger.error("First check threw; product rolled back", {
+        productId: created.id,
+        userId: context.user.id,
+        url,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw new ORPCError("INTERNAL_SERVER_ERROR", {
+        message:
+          "Could not read a price from the page. The product was not added.",
+      });
+    }
 
     if (
       check.status === "failed" ||
