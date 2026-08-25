@@ -31,6 +31,37 @@ const distRoot = join(serverDir, "..", "dist");
 const app = new Hono();
 
 /**
+ * Baseline security headers applied to every response. CSP starts
+ * restrictive-simple (self for scripts/styles, data: + https: for images, the
+ * app's own /api for connections) and can be tightened in a follow-up.
+ * `script-src 'self' 'unsafe-inline'` accommodates the inline theme-init
+ * script in index.html (FOUC prevention) without a nonce/hash harness.
+ */
+const SECURITY_HEADERS: Record<string, string> = {
+  "content-security-policy": [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: https:",
+    "connect-src 'self'",
+    "font-src 'self'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join("; "),
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "DENY",
+  "referrer-policy": "strict-origin-when-cross-origin",
+};
+
+app.use("*", async (c, next) => {
+  await next();
+  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+    c.header(key, value);
+  }
+});
+
+/**
  * oRPC RPCHandler — mirrors the contract in the former Next route handler
  * (`app/api/rpc/[...path]/route.ts`). The router is mounted under `/api/rpc`;
  * the handler strips that prefix before matching, and seeds the context with
@@ -110,9 +141,15 @@ app.get("/api/images/:id", async (c) => {
 
 /**
  * Vite-built static assets (JS/CSS chunks). Served without auth — they are
- * public, fingerprinted files with no sensitive content.
+ * public, fingerprinted files with no sensitive content. Hashed filenames
+ * are safe to cache as immutable.
  */
-app.use("/assets/*", serveStatic({ root: distRoot }));
+app.use("/assets/*", async (c, next) => {
+  await serveStatic({ root: distRoot })(c, next);
+  if (c.res.status !== 404) {
+    c.header("cache-control", "public, max-age=31536000, immutable");
+  }
+});
 
 /**
  * Root-level public files copied from `public/` into `dist/` (e.g. `/icon.svg`).
@@ -162,9 +199,15 @@ app.get("*", async (c, next) => {
 
 /**
  * SPA fallback: serve `index.html` for all remaining GET routes. React Router
- * handles client-side routing from there.
+ * handles client-side routing from there. The shell must revalidate on every
+ * load so new deploys ship.
  */
-app.get("*", serveStatic({ root: distRoot, path: "index.html" }));
+app.get("*", async (c, next) => {
+  await serveStatic({ root: distRoot, path: "index.html" })(c, next);
+  if (c.res.status !== 404) {
+    c.header("cache-control", "no-cache");
+  }
+});
 
 /**
  * Start the in-process price-check scheduler on boot (mirrors
