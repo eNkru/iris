@@ -1,7 +1,7 @@
 "use client";
 
 import { Link } from "react-router";
-import { useState } from "react";
+import { forwardRef, useEffect, useRef, useState } from "react";
 import {
   useCheckNow,
   useDeleteProduct,
@@ -45,7 +45,10 @@ export function ProductList() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [summaryCount, setSummaryCount] = useState<number | null>(null);
-  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<
+    { id: string; alt: string; triggerId: string } | null
+  >(null);
+  const lightboxRef = useRef<HTMLDivElement | null>(null);
 
   const products = data?.products ?? [];
 
@@ -190,7 +193,17 @@ export function ProductList() {
               {product.imagePath ? (
                 <button
                   type="button"
-                  onClick={() => setLightboxImage(product.id)}
+                  onClick={() =>
+                    setLightbox({
+                      id: product.id,
+                      alt: product.name ?? product.url,
+                      triggerId: `lightbox-trigger-${product.id}`,
+                    })
+                  }
+                  id={`lightbox-trigger-${product.id}`}
+                  aria-label={t("productList.openImage", {
+                    name: product.name ?? product.url,
+                  })}
                   className="shrink-0 cursor-zoom-in self-start rounded-lg border border-stone-200 dark:border-stone-700"
                 >
                   <img
@@ -302,27 +315,96 @@ export function ProductList() {
       })}
       {listToolbar}
 
-      {lightboxImage ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-          onClick={() => setLightboxImage(null)}
-        >
-          <button
-            type="button"
-            onClick={() => setLightboxImage(null)}
-            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-2xl text-white transition-colors hover:bg-white/20"
-            aria-label="Close"
-          >
-            ✕
-          </button>
-          <img
-            src={`/api/images/${lightboxImage}`}
-            alt="Product image"
-            className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
+      {lightbox ? (
+        <Lightbox
+          ref={lightboxRef}
+          imageId={lightbox.id}
+          alt={lightbox.alt}
+          label={t("productList.imageDialog", {
+            name: lightbox.alt,
+          })}
+          onClose={() => {
+            setLightbox(null);
+            // Return focus to the triggering thumbnail button.
+            const trigger = document.getElementById(lightbox.triggerId);
+            if (trigger instanceof HTMLElement) trigger.focus();
+          }}
+        />
       ) : null}
     </div>
   );
 }
+
+/**
+ * Accessible image lightbox: a focus-trapped dialog with `role="dialog"` /
+ * `aria-modal`, `Escape` to close, background scroll lock, and backdrop click
+ * to close. Focus moves to the Close button on open and returns to the
+ * triggering element on close (handled by the parent's `onClose`).
+ */
+interface LightboxProps {
+  imageId: string;
+  alt: string;
+  label: string;
+  onClose: () => void;
+}
+
+const Lightbox = forwardRef<HTMLDivElement, LightboxProps>(function Lightbox(
+  { imageId, alt, label, onClose },
+  ref,
+) {
+  const closeBtnRef = useRef<HTMLButtonElement | null>(null);
+
+  // Move focus into the dialog on open; lock background scroll.
+  useEffect(() => {
+    closeBtnRef.current?.focus();
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, []);
+
+  // Close on Escape; trap Tab within the dialog (only the Close button is focusable).
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      if (e.key === "Tab") {
+        // Single focusable element: keep focus on the Close button.
+        e.preventDefault();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      role="dialog"
+      aria-modal="true"
+      aria-label={label}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      onClick={onClose}
+    >
+      <button
+        ref={closeBtnRef}
+        type="button"
+        onClick={onClose}
+        className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-2xl text-white transition-colors hover:bg-white/20"
+        aria-label="Close"
+      >
+        ✕
+      </button>
+      <img
+        src={`/api/images/${imageId}`}
+        alt={alt}
+        className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
+});
