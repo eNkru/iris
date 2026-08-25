@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 15
-- **Last Active**: 2026-08-20
+- **Total Sessions**: 16
+- **Last Active**: 2026-08-25
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~583 | Active |
+| `journal-1.md` | ~618 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 16 | 2026-08-25 | Migrate price extraction to argus /v1/extract-price | `898be53`, `6e51866`, `8c50395` | `main` |
 | 15 | 2026-08-20 | Retry transient 503 from AI provider | `01a2191` | `main` |
 | 14 | 2026-08-18 | Price chart daily gap fill | `1c46412` | `feat/price-chart-daily-fill` |
 | 13 | 2026-08-18 | Dark-mode recolor gold/amber + PR | `20d9551`, `aa65e19`, `52acdae` | `feat/dark-mode-recolor` |

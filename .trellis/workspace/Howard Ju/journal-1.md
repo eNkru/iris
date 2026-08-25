@@ -581,3 +581,38 @@ Kogan product creates were rolling back with 'Service Unavailable' on the preloa
 ### Next Steps
 
 - None - task complete
+
+
+## Session 16: Migrate price extraction to argus /v1/extract-price
+
+**Date**: 2026-08-25
+**Task**: Migrate price extraction to argus /v1/extract-price
+**Branch**: `main`
+
+### Summary
+
+Removed iris's entire AI extraction layer: checkPrice now calls argus POST /v1/extract-price (JSON-LD first, LLM fallback in argus). New extract-price.ts client (bearer auth, pLimit(5), per-reason retry policy); images now derive from the returned JSON-LD Product node; deleted ai-extract/ai-sdk/fetch-page + AI_* env vars + ai-sdk deps; dropped global_settings.ai* x6 and user_settings.aiModelOverride via migration 0003 (validated on old-shape DB); trimmed settings/admin API+UI. QA pass fixes: positive-price guard (Number('')==0 regression), 120s timeout for AI-fallback worst case, 4xx fail-fast, dead-code removal, +5 tests. Debugged live Docker setup: ARGUS_BASE_URL must use host.docker.internal from inside containers (added compose host-gateway extra_hosts).
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `898be53` | (see git log) |
+| `6e51866` | (see git log) |
+| `8c50395` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
