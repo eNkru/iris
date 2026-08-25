@@ -5,13 +5,13 @@
       "id": "5",
       "subject": "Fix session `loaded` flag for unauthenticated/errored sessions",
       "description": "Critical auth-gating bug. `apps/web/src/components/session-provider.tsx:36-46` sets `loaded` only when `sessionData` is truthy, but better-auth `/get-session` returns `null` (not `{session:null,user:null}`) when signed out. Result: expired/revoked-session users (cookie present, server session dead) pass the server cookie-presence gate (`server.ts:111`), get `index.html`, then hang forever on `AuthGate`'s spinner because `loaded && !user` never fires. Same happens on `/get-session` network error (`retry:false`). Fix: derive `loaded` from query settled state — `const loaded = query.isSuccess || query.isError;` — and use `query.data?.session ?? null` / `query.data?.user ?? null`. Also fix the same `if (session)` bug in the example in `.trellis/spec/frontend/authentication.md §3`.",
-      "status": "in_progress",
+      "status": "completed",
       "activeForm": "Fixing session loaded flag",
       "metadata": {},
       "blocks": [],
       "blockedBy": [],
       "createdAt": 1787629900667,
-      "updatedAt": 1787630330758
+      "updatedAt": 1787631050597
     },
     {
       "id": "6",
@@ -23,43 +23,43 @@
       "blocks": [],
       "blockedBy": [],
       "createdAt": 1787629900668,
-      "updatedAt": 1787630599733
+      "updatedAt": 1787631050601
     },
     {
       "id": "7",
       "subject": "Align dev server port with Vite proxy",
       "description": "High — blocks local dev. `apps/web/vite.config.ts:46` proxies `/api` to `http://localhost:3001`, but `apps/web/server.ts:139` hardcodes `serve({ …, port: 3000 })`. No `PORT` env exists anywhere. Dev API calls all ECONNREFUSED. Fix: make the port configurable — `serve({ fetch: app.fetch, port: Number(process.env.PORT ?? 3000) })` and run the dev server with `PORT=3001` (or change the Vite proxy target to `:3000`). Align whatever side is wrong; the vite.config comment says the intent is `:3001`.",
-      "status": "in_progress",
+      "status": "completed",
       "activeForm": "Aligning dev server port",
       "metadata": {},
       "blocks": [],
       "blockedBy": [],
       "createdAt": 1787629900669,
-      "updatedAt": 1787630599739
+      "updatedAt": 1787631050604
     },
     {
       "id": "8",
       "subject": "Add top-level ErrorBoundary and catch-all not-found route",
       "description": "High resilience. `apps/web/src/app.tsx:1-29` declares four `<Route>`s with no `*` catch-all and no `errorElement`; `main.tsx` has no top-level `ErrorBoundary`. A render throw (e.g. in the Recharts subtree) unmounts the whole tree (blank page, no nav, no recovery); `/foo` and `/products/not-a-uuid` render an empty shell. Fix: add a top-level `ErrorBoundary` around `<App/>` (or per-route `errorElement`) with a fallback UI + \"reload\" action, and a `<Route path=\"*\" element={<NotFound/>} />`. Data-fetch errors are already handled in-component via `isError`/`ErrorBox`; this covers the render path.",
-      "status": "pending",
+      "status": "completed",
       "activeForm": "Adding ErrorBoundary and catch-all route",
       "metadata": {},
       "blocks": [],
       "blockedBy": [],
       "createdAt": 1787629900670,
-      "updatedAt": 1787629900670
+      "updatedAt": 1787631050606
     },
     {
       "id": "9",
       "subject": "Stop overwriting product currency with null on price change",
       "description": "High data integrity. `packages/prices/src/pipeline/check-price.ts:151-153` sets `currency: extraction.currency` on every price change. `types.ts` documents that `extraction.currency` may be `null` when argus can't determine one, so a single transient null clobbers a previously-correct currency on the product row and in subsequent alerts. Fix: mirror the `name` pattern — `currency: extraction.currency ?? locked.currency ?? null` (prefer the fresh value, fall back to the stored value). Add a unit test covering a null-currency extraction after a known-currency check.",
-      "status": "pending",
+      "status": "in_progress",
       "activeForm": "Fixing currency overwrite on price change",
       "metadata": {},
       "blocks": [],
       "blockedBy": [],
       "createdAt": 1787629900671,
-      "updatedAt": 1787629900671
+      "updatedAt": 1787631034465
     },
     {
       "id": "10",
