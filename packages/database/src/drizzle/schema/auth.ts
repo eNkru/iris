@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 /**
  * better-auth tables (Drizzle adapter).
@@ -55,13 +55,24 @@ export const account = sqliteTable("account", {
   updatedAt: timestamp("updatedAt").notNull(),
 });
 
-export const verification = sqliteTable("verification", {
-  id: text("id").primaryKey(),
-  identifier: text("identifier").notNull(),
-  value: text("value").notNull(),
-  expiresAt: timestamp("expiresAt").notNull(),
-  createdAt: timestamp("createdAt"),
-  updatedAt: timestamp("updatedAt"),
-});
+export const verification = sqliteTable(
+  "verification",
+  {
+    id: text("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: timestamp("expiresAt").notNull(),
+    createdAt: timestamp("createdAt"),
+    updatedAt: timestamp("updatedAt"),
+  },
+  (table) => [
+    // better-auth resolves magic-link tokens via `WHERE value = ?`; without an
+    // index this is a full table scan on every login, and the table grows
+    // because nothing prunes expired rows. `value` is unique per verification
+    // row (single-use, rotated), so a unique index is correct and matches the
+    // `session.token` / `user.email` unique indexes.
+    uniqueIndex("verification_value_unique").on(table.value),
+  ],
+);
 
 export const authTables = { user, session, account, verification } as const;
