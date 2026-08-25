@@ -27,10 +27,17 @@ export type GetGlobalSettingsOutput = z.infer<typeof getGlobalSettingsOutputSche
 export const updateGlobalSettingsInputSchema = z.object({
   pollIntervalDefaultMinutes: z.number().int().min(1).max(10080).optional(),
   /**
-   * When present and non-empty the token is saved; when absent/empty the stored
-   * token is left unchanged (never returned by GET).
+   * Telegram bot token write semantics:
+   * - `undefined` (absent): leave the stored token unchanged.
+   * - non-empty string: store the new token.
+   * - empty string `""`: leave the stored token unchanged (treated like
+   *   `undefined` so a partial submit that omits the token never clears it).
+   * - `null`: clear the stored token (explicit clear sentinel).
+   *
+   * The token is never returned in full by GET (outputs return a masked
+   * placeholder via `maskSecret`).
    */
-  telegramBotToken: z.string().optional(),
+  telegramBotToken: z.union([z.string(), z.null()]).optional(),
 });
 export type UpdateGlobalSettingsInput = z.infer<typeof updateGlobalSettingsInputSchema>;
 

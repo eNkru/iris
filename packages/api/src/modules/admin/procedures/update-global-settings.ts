@@ -33,8 +33,13 @@ export const updateGlobalSettingsProcedure = adminProcedure
         input.pollIntervalDefaultMinutes ?? row?.pollIntervalDefaultMinutes ?? 60,
     };
 
-    // Write-only secrets: save only when a non-empty value is submitted.
-    if (input.telegramBotToken !== undefined && input.telegramBotToken.trim() !== "") {
+    // Telegram bot token write semantics (see `updateGlobalSettingsInputSchema`):
+    // `null` clears the stored token, a non-empty string updates it, and
+    // `undefined`/empty leaves it unchanged. The token is never returned in
+    // full by GET (masked via `maskSecret`).
+    if (input.telegramBotToken === null) {
+      merged.telegramBotToken = null;
+    } else if (input.telegramBotToken !== undefined && input.telegramBotToken.trim() !== "") {
       merged.telegramBotToken = input.telegramBotToken;
     }
 
