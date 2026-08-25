@@ -616,3 +616,45 @@ Removed iris's entire AI extraction layer: checkPrice now calls argus POST /v1/e
 ### Next Steps
 
 - None - task complete
+
+
+## Session 17: Batch of 10 low-priority fixes (single PR #45)
+
+**Date**: 2026-08-26
+**Task**: Batch of 10 low-priority fixes (single PR #45)
+**Branch**: `main`
+
+### Summary
+
+Implemented all 10 low-priority tasks from .trellis/tasks/08-25-low-*/ and bundled them into one PR (#45, merged). Backend/infra: explicit return types in users.ts queries; dropped build-time ARGUS_API_TOKEN Docker placeholder; force-exit timeout on graceful shutdown (SHUTDOWN_FORCE_EXIT_MS); structured logging for SMTP send failures. API: allow clearing the Telegram bot token via null sentinel + Clear-token button; disambiguate check-now page-not-found message. Frontend: reset AddProductForm banner on submit; reset ProductDetailPage check-now state across :id changes; split ProductEditForm pause/resume pending from Save; make TelegramHelpTooltip touch + AT friendly (click/Enter/Space toggle, aria-describedby, Escape, outside-click). Added tests for the clear-token, pending-split, and tooltip behaviors. All 171 tests pass; typecheck and lint green across all packages.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `985c684` | (see git log) |
+| `405d619` | (see git log) |
+| `0207cd6` | (see git log) |
+| `07b6292` | (see git log) |
+| `605c2f5` | (see git log) |
+| `9c6c556` | (see git log) |
+| `5c33dec` | (see git log) |
+| `8941ff0` | (see git log) |
+| `a9f3bb2` | (see git log) |
+| `f002cd1` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

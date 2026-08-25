@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 16
-- **Last Active**: 2026-08-25
+- **Total Sessions**: 17
+- **Last Active**: 2026-08-26
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~618 | Active |
+| `journal-1.md` | ~660 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 17 | 2026-08-26 | Batch of 10 low-priority fixes (single PR #45) | `985c684`, `405d619`, `0207cd6`, `07b6292`, `605c2f5`, `9c6c556`, `5c33dec`, `8941ff0`, `a9f3bb2`, `f002cd1` | `main` |
 | 16 | 2026-08-25 | Migrate price extraction to argus /v1/extract-price | `898be53`, `6e51866`, `8c50395` | `main` |
 | 15 | 2026-08-20 | Retry transient 503 from AI provider | `01a2191` | `main` |
 | 14 | 2026-08-18 | Price chart daily gap fill | `1c46412` | `feat/price-chart-daily-fill` |
