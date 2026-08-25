@@ -215,6 +215,27 @@ describe("downloadProductImage", () => {
     expect(() => readFileSync(path.join(tempImagesDir, "prod-mismatch.jpg"))).toThrow();
   });
 
+  it("rejects an oversized image before decoding the full base64 payload (AC1)", async () => {
+    // A base64 string whose decoded length exceeds MAX_IMAGE_BYTES (10 MiB).
+    // ~14 MiB of base64 → ~10.5 MiB decoded, over the limit. Padding with 'A'
+    // (decodes to 0x00) keeps the payload cheap to build.
+    const oversizedB64 = "A".repeat(Math.ceil((10 * 1024 * 1024 + 1) * 4 / 3));
+    const { calls } = fakeFetchResponses([
+      () => sidecarJsonOk("image/png", oversizedB64),
+    ]);
+
+    const filename = await downloadProductImage(
+      "prod-oversized",
+      "https://example.test/img.png",
+    );
+
+    expect(filename).toBeNull();
+    expect(calls).toHaveLength(1);
+    expect(() =>
+      readFileSync(path.join(tempImagesDir, "prod-oversized.png")),
+    ).toThrow();
+  });
+
   it("retries a transient 502 once, then succeeds on attempt 2 (AC3)", async () => {
     const { calls } = fakeFetchResponses([
       () => sidecarHttpError(502),
