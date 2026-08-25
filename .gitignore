@@ -17,6 +17,7 @@ build/
 
 # Runtime data (local dev SQLite DB)
 apps/web/data/
+/data/
 
 # Next.js
 next-env.d.ts
