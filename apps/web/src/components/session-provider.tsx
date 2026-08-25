@@ -2,7 +2,7 @@
 
 import { authClient } from "@iris/auth/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode } from "react";
 import { SessionContext, type SessionContextValue } from "../lib/session-context";
 
 /**
@@ -33,17 +33,21 @@ export function useSessionQuery() {
  * Session provider (frontend/authentication.md §3). Wraps better-auth's session
  * in React Query so pages can render a `loaded` gate without flashing
  * unauthenticated content during static prerendering.
+ *
+ * `loaded` is derived from the query's settled state (`isSuccess || isError`),
+ * NOT from a truthy `data` check. better-auth's `/get-session` returns `null`
+ * (not `{ session: null, user: null }`) when the user is signed out, so a
+ * `data`-truthy gate would never flip and an expired/revoked session (cookie
+ * present, server session dead) would hang the client on a perpetual spinner
+ * after the server's cookie-presence gate already served `index.html`.
+ * The same is true for a `/get-session` network error: `retry: false` means
+ * the query settles to `isError`.
  */
 export function SessionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  const { data: sessionData } = useSessionQuery();
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    if (sessionData) {
-      setLoaded(true);
-    }
-  }, [sessionData]);
+  const query = useSessionQuery();
+  const sessionData = query.data;
+  const loaded = query.isSuccess || query.isError;
 
   const value: SessionContextValue = {
     loaded,
@@ -57,7 +61,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         throw new Error(error.message || "Failed to fetch session");
       }
       queryClient.setQueryData(sessionQueryKey, () => data);
-      setLoaded(true);
     },
   };
 

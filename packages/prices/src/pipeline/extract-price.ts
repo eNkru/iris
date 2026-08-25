@@ -1,4 +1,5 @@
 import pLimit from "p-limit";
+import { z } from "zod";
 import { getEnv, logger } from "@iris/utils";
 import { backoffDelayMs } from "./retry";
 
@@ -96,31 +97,76 @@ function getArgusConfig(): { baseUrl: string; token: string } {
   return { baseUrl: ARGUS_BASE_URL.replace(/\/+$/, ""), token: ARGUS_API_TOKEN };
 }
 
-/** Body shape of a successful argus extract-price response. */
-interface ArgusExtractOkResponse {
-  ok: true;
-  source?: string;
-  url?: unknown;
-  available?: unknown;
-  price?: unknown;
-  currency?: unknown;
-  name?: unknown;
-  jsonld?: unknown;
-}
-
 /**
- * Body shape of an argus extract-price failure response (argus never throws).
- * Blocked responses carry the signature id + retryable verdict from argus's
- * registry (ported verbatim from iris's old blocked-signatures.ts).
+ * Zod contract for argus's `POST /v1/extract-price` response.
+ *
+ * External API responses are validated with Zod (shared/typescript.md) rather
+ * than ad-hoc `typeof` checks so the argus contract is explicit and a drifted
+ * payload fails loudly instead of silently mis-shaping an `ok` result.
+ *
+ * `ok: true` is discriminated by `available`:
+ * - `available: true` requires a price field (string or number).
+ * - `available: false` permits a null/absent price.
+ * `ok: false` is discriminated by `reason` (`blocked` / `extraction_failed` /
+ * `fetch_failed`); unknown reasons fall through to the retryable branch.
+ *
+ * Price positivity is NOT enforced in the schema: a non-positive/non-finite
+ * price on an `available: true` response is a degraded extraction, which the
+ * original pipeline classified as a TERMINAL "Price extraction failed" (not a
+ * retryable transport error). Keeping the schema permissive for the numeric
+ * value and checking positivity afterward preserves that classification —
+ * a schema rejection would otherwise turn it into a retryable "unexpected
+ * payload" and burn the retry budget for nothing.
  */
-interface ArgusExtractFailResponse {
-  ok: false;
-  reason: "blocked" | "fetch_failed" | "extraction_failed";
-  /** Present when `reason === "blocked"`: registry signature id. */
-  signature?: string;
-  /** Present when `reason === "blocked"`: fresh-attempt verdict. */
-  retryable?: boolean;
-}
+const priceField = z
+  .union([z.string(), z.number()])
+  .transform((raw): number => {
+    // argus returns decimal-normalized 2dp strings ("599.99") so values
+    // round-trip JSON cleanly, but accept a JSON number too. Non-numeric
+    // strings coerce to NaN here; the caller rejects them as a terminal
+    // extraction failure below.
+    return typeof raw === "number" ? raw : Number(raw);
+  });
+
+const argusOkResponseSchema = z.discriminatedUnion("available", [
+  z.object({
+    ok: z.literal(true),
+    source: z.string().optional(),
+    url: z.string(),
+    available: z.literal(true),
+    // `price` is accepted nullish so an `available: true` response that
+    // omitted/failed the price still parses; the post-parse check below maps
+    // a null/non-positive price to a terminal "Price extraction failed".
+    price: priceField.nullish(),
+    currency: z.string().min(1).max(16).nullish(),
+    name: z.string().nullish(),
+    jsonld: z.record(z.string(), z.unknown()).nullish(),
+  }),
+  z.object({
+    ok: z.literal(true),
+    source: z.string().optional(),
+    url: z.string(),
+    available: z.literal(false),
+    price: priceField.nullish(),
+    currency: z.string().min(1).max(16).nullish(),
+    name: z.string().nullish(),
+    jsonld: z.record(z.string(), z.unknown()).nullish(),
+  }),
+]);
+
+const argusFailResponseSchema = z.object({
+  ok: z.literal(false),
+  reason: z.string(),
+  // Present when `reason === "blocked"`: registry signature id + fresh-attempt
+  // verdict. Defaults are applied defensively below.
+  signature: z.string().optional(),
+  retryable: z.boolean().optional(),
+});
+
+const argusResponseSchema = z.discriminatedUnion("ok", [
+  argusOkResponseSchema,
+  argusFailResponseSchema,
+]);
 
 /**
  * Perform a single argus extract-price attempt. POST
@@ -179,100 +225,66 @@ async function attemptArgusExtract(
       return { kind: "retryable-error", message: `argus non-JSON response: ${message}` };
     }
 
-    if (
-      payload &&
-      typeof payload === "object" &&
-      (payload as { ok?: unknown }).ok === true
-    ) {
-      const ok = payload as ArgusExtractOkResponse;
+    const parsed = argusResponseSchema.safeParse(payload);
+    if (!parsed.success) {
+      // Malformed/unexpected payload: transport-class, retryable — matches the
+      // prior behavior for an unexpected shape.
+      return { kind: "retryable-error", message: "argus returned an unexpected payload" };
+    }
+    const data = parsed.data;
 
-      const priceRaw = ok.price;
-      let price: number | null = null;
-      if (typeof priceRaw === "string") {
-        // argus returns decimal-normalized 2dp strings ("599.99") so values
-        // round-trip JSON cleanly; convert once here and reject garbage.
-        // Positive-only matches the old pipeline's z.number().positive()
-        // contract — Number("") === Number("0") === 0 must NOT pass as a real
-        // price, or a garbage payload becomes a $0.00 reading and a false
-        // "price dropped to $0" alert.
-        price = Number(priceRaw);
-        if (!Number.isFinite(price) || price <= 0) {
-          return { kind: "terminal-error", message: "Price extraction failed" };
-        }
-      } else if (priceRaw !== null && priceRaw !== undefined) {
-        return { kind: "terminal-error", message: "Price extraction failed" };
-      }
-
-      if (typeof ok.url !== "string" || typeof ok.available !== "boolean") {
-        return {
-          kind: "retryable-error",
-          message: "argus extract-price returned an unexpected payload",
-        };
-      }
-
-      const currency =
-        typeof ok.currency === "string" ? ok.currency : null;
-      const name = typeof ok.name === "string" ? ok.name : null;
-      const jsonld =
-        ok.jsonld && typeof ok.jsonld === "object"
-          ? (ok.jsonld as Record<string, unknown>)
-          : null;
-
-      if (ok.available) {
-        // Available products must carry a usable price; anything else is a
-        // degraded extraction rather than a real "no price" state.
-        if (price === null) {
+    if (data.ok) {
+      if (data.available) {
+        // Available products must carry a usable positive price; a
+        // null/absent, non-finite, or non-positive price (e.g. argus sent
+        // null, "", "0", or a negative) is a degraded extraction — terminal,
+        // not retryable — so a garbage payload never becomes a $0.00 reading
+        // and a false "price dropped to $0" alert. NaN reaches here only from
+        // a non-numeric string that still satisfied the schema's `string()`
+        // branch.
+        const price = data.price;
+        if (price === null || price === undefined || !Number.isFinite(price) || price <= 0) {
           return { kind: "terminal-error", message: "Price extraction failed" };
         }
         return {
           kind: "ok",
-          url: ok.url,
+          url: data.url,
           available: true,
           price,
-          currency,
-          name,
-          jsonld,
+          currency: data.currency ?? null,
+          name: data.name ?? null,
+          jsonld: data.jsonld ?? null,
         };
       }
       return {
         kind: "ok",
-        url: ok.url,
+        url: data.url,
         available: false,
         price: null,
         currency: null,
-        name,
-        jsonld,
+        name: data.name ?? null,
+        jsonld: data.jsonld ?? null,
       };
     }
 
-    if (
-      payload &&
-      typeof payload === "object" &&
-      (payload as { ok?: unknown }).ok === false
-    ) {
-      const fail = payload as ArgusExtractFailResponse;
-      const reason = typeof fail.reason === "string" ? fail.reason : "unknown";
-
-      if (reason === "blocked") {
-        return {
-          kind: "blocked",
-          // Defensive: argus sends both fields on a blocked response; fall
-          // back conservatively (unknown signature → retryable) if absent.
-          signature:
-            typeof fail.signature === "string" ? fail.signature : "unknown",
-          retryable: typeof fail.retryable === "boolean" ? fail.retryable : true,
-        };
-      }
-      if (reason === "extraction_failed") {
-        // Terminal: the page loaded; argus's extraction already exhausted its
-        // own options (JSON-LD miss + internal LLM fallback).
-        return { kind: "terminal-error", message: "Price extraction failed" };
-      }
-      // fetch_failed and anything unrecognized: transport-class, retryable.
-      return { kind: "retryable-error", message: `argus fetch failed (${reason})` };
+    // `ok: false` — classify by `reason`.
+    const reason = data.reason;
+    if (reason === "blocked") {
+      return {
+        kind: "blocked",
+        // Defensive: argus sends both fields on a blocked response; fall
+        // back conservatively (unknown signature → retryable) if absent.
+        signature: data.signature ?? "unknown",
+        retryable: data.retryable ?? true,
+      };
     }
-
-    return { kind: "retryable-error", message: "argus returned an unexpected payload" };
+    if (reason === "extraction_failed") {
+      // Terminal: the page loaded; argus's extraction already exhausted its
+      // own options (JSON-LD miss + internal LLM fallback).
+      return { kind: "terminal-error", message: "Price extraction failed" };
+    }
+    // fetch_failed and anything unrecognized: transport-class, retryable.
+    return { kind: "retryable-error", message: `argus fetch failed (${reason})` };
   } catch (error) {
     // Network errors (`TypeError`), aborts, timeouts — all transport-class.
     const message = error instanceof Error ? error.message : String(error);

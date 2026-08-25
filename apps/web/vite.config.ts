@@ -11,7 +11,9 @@ import { resolve } from "node:path";
  *   package root so the prefix matcher resolves the more specific path first.
  *   Vite transforms the `.ts` sources natively.
  * - `server.proxy` forwards `/api` to the dev Hono server on :3001 so the
- *   single `pnpm dev` command runs Vite + tsx concurrently.
+ *   single `pnpm dev` command runs Vite + tsx concurrently. The dev script
+ *   passes `PORT=3001` to `tsx watch server.ts` so the two agree; production
+ *   (`node dist-server/server.cjs`) keeps the default :3000.
  * - `build.outDir` is `dist`, served by the Hono production server.
  */
 export default defineConfig({
