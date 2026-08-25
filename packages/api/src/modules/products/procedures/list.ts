@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@iris/database";
 import { priceReadings, products } from "@iris/database/drizzle/schema/sqlite";
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -54,8 +54,14 @@ export const listProducts = protectedProcedure
   });
 
 /**
- * One batch query for the latest reading of every product (readings are ordered
- * ascending by insert, so the row with the max `checkedAt` per product wins).
+ * Bounded latest-reading lookup. Previously this loaded EVERY reading for the
+ * batch and reduced to the latest per product in memory — unbounded as a price
+ * tracker accumulates history (100 products × months of checks). It now runs a
+ * SINGLE indexed query that keeps, per product, only the row with the greatest
+ * `(checkedAt, id)` via a correlated subquery (SQLite 3.25+). The result is
+ * bounded to at most one row per product, so the in-memory dedup below is
+ * effectively a no-op safety net for ties and costs nothing over the bounded
+ * set. Uses the `price_readings_product_id_checked_at_idx` index.
  */
 async function getLatestReadingsByProduct(
   productIds: string[],
@@ -63,8 +69,22 @@ async function getLatestReadingsByProduct(
   const readings = await db
     .select()
     .from(priceReadings)
-    .where(inArray(priceReadings.productId, productIds))
-    .orderBy(asc(priceReadings.checkedAt), asc(priceReadings.id));
+    .where(
+      and(
+        inArray(priceReadings.productId, productIds),
+        // Keep only each product's latest row: the row whose id equals the id
+        // of the per-product max (checkedAt DESC, id DESC) row. Bounded to ≤ 1
+        // row per product regardless of history length. Subquery column refs
+        // are raw (Drizzle's column object would emit `p2."price_readings"."id"`
+        // — invalid), so they're quoted camelCase per the SQLite contract.
+        sql`${priceReadings.id} = (
+          SELECT "p2"."id" FROM "price_readings" AS "p2"
+          WHERE "p2"."productId" = ${priceReadings.productId}
+          ORDER BY "p2"."checkedAt" DESC, "p2"."id" DESC
+          LIMIT 1
+        )`,
+      ),
+    );
 
   const latestByProduct = new Map<string, PriceReadingOutput>();
   for (const reading of readings) {
