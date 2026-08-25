@@ -77,25 +77,25 @@
       "id": "11",
       "subject": "Bound dashboard \"latest reading\" query (no full history scan)",
       "description": "High perf. `packages/api/src/modules/products/procedures/list.ts:60-77` (`getLatestReadingsByProduct`) selects ALL price_readings for up to 100 products with no `.limit()` and reduces to the latest per product in a JS loop. Unbounded as readings accumulate (100 products × months of checks = tens of thousands of rows per dashboard load). `products/get.ts` and `history/by-product.ts` both correctly `.limit()`. Fix: fetch only the latest reading per product in one query — a `groupBy` + `max(checkedAt)` subquery (or a SQLite `ROW_NUMBER() OVER (PARTITION BY productId ORDER BY checkedAt DESC)` window) then `inArray` for those rows. Verify the `price_readings_product_id_checked_at_idx` index supports it.",
-      "status": "in_progress",
+      "status": "completed",
       "activeForm": "Bounding dashboard latest-reading query",
       "metadata": {},
       "blocks": [],
       "blockedBy": [],
       "createdAt": 1787629900673,
-      "updatedAt": 1787631535273
+      "updatedAt": 1787631768947
     },
     {
       "id": "12",
       "subject": "Roll back product row when checkPrice throws on create",
       "description": "High data integrity. `packages/api/src/modules/products/procedures/create.ts:51-60` inserts the product, calls `checkPrice(created.id)` (external argus HTTP), and rolls back via `db.delete` only on the three bad-status branches. If `checkPrice` throws (network/timeout/unhandled rejection), execution leaves the handler, oRPC returns 500, and the just-inserted row stays with no reading and no rollback. There's no `(userId, url)` unique constraint, so a retry creates a duplicate orphan. Fix: wrap the external call in try/catch — on throw, `await db.delete(products).where(eq(products.id, created.id))`, log a structured error, and throw `ORPCError(\"INTERNAL_SERVER_ERROR\", { message: \"Could not read a price from the page. The product was not added.\" })`. Do NOT hold a SQLite transaction across the external call (better-sqlite3 is synchronous; don't hold a write lock during a 45s fetch).",
-      "status": "pending",
+      "status": "in_progress",
       "activeForm": "Rolling back product on checkPrice throw",
       "metadata": {},
       "blocks": [],
       "blockedBy": [],
       "createdAt": 1787629900674,
-      "updatedAt": 1787629900674
+      "updatedAt": 1787631768953
     },
     {
       "id": "13",
