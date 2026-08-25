@@ -151,6 +151,13 @@ async function runCheckPrice(productId: string): Promise<CheckPriceResult> {
 
     // Insert history only on price change (R9); update the current price and
     // fill name/currency from the extraction when not yet known.
+    //
+    // The reading records the currency argus actually returned for this check
+    // (null when it couldn't determine one) so history stays honest. The product
+    // row, by contrast, prefers the fresh currency but falls back to the
+    // previously-known value — a single transient null from argus must not
+    // clobber a currency we already knew (types.ts notes currency may be null
+    // on the AI-fallback path), or subsequent alerts/UI would lose the prefix.
     tx.insert(priceReadings).values({
       productId,
       price: newPrice.toFixed(2),
@@ -162,7 +169,7 @@ async function runCheckPrice(productId: string): Promise<CheckPriceResult> {
       .update(products)
       .set({
         currentPrice: newPrice.toFixed(2),
-        currency: extraction.currency,
+        currency: extraction.currency ?? locked.currency,
         name: locked.name ?? extraction.name ?? null,
         lastCheckedAt: now,
         updatedAt: now,

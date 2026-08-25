@@ -194,10 +194,12 @@ function startSchedulerSafely(): void {
   }
 }
 
+const port = Number(process.env.PORT ?? 3000);
+
 const server = serve(
-  { fetch: app.fetch, port: 3000 },
+  { fetch: app.fetch, port },
   () => {
-    logger.info("Server started", { port: 3000 });
+    logger.info("Server started", { port });
     startSchedulerSafely();
   },
 );
