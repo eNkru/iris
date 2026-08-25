@@ -13,6 +13,16 @@ type ProductRow = typeof products.$inferSelect;
 const inflightChecks = new Map<string, Promise<CheckPriceResult>>();
 
 /**
+ * Overall per-product check deadline. A single hung argus extraction can
+ * otherwise hold the single-flight lock for up to ~6min (120s × 3 retries),
+ * blocking manual check-now and occupying a scheduler slot. When the deadline
+ * fires, the check resolves as `failed: check_deadline_exceeded` so the lock
+ * releases and the caller surfaces a clear error. The underlying extract work
+ * is not aborted (v1); it continues and its eventual result is ignored.
+ */
+const CHECK_DEADLINE_MS = 150_000;
+
+/**
  * checkPrice(productId) — the synchronous price-check pipeline (R8):
  * extract via argus → store → compare with last price → alert if changed.
  * Called by both the synchronous RPC (create/checkNow) and the scheduler.
@@ -48,6 +58,23 @@ export function checkPrice(productId: string): Promise<CheckPriceResult> {
 }
 
 async function runCheckPrice(productId: string): Promise<CheckPriceResult> {
+  let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<CheckPriceResult>((resolve) => {
+    deadlineTimer = setTimeout(
+      () => resolve({ status: "failed", reason: "check_deadline_exceeded" }),
+      CHECK_DEADLINE_MS,
+    );
+  });
+
+  const work = runCheckPriceWork(productId);
+  try {
+    return await Promise.race([work, deadline]);
+  } finally {
+    if (deadlineTimer) clearTimeout(deadlineTimer);
+  }
+}
+
+async function runCheckPriceWork(productId: string): Promise<CheckPriceResult> {
   const now = new Date();
 
   const product = await getProductForCheck(productId);
