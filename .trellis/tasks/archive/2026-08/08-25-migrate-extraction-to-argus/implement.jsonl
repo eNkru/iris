@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/performance.md", "reason": "Shared limiter pattern + argus transport contract the new client must follow"}
+{"file": ".trellis/spec/backend/type-safety.md", "reason": "Discriminated union + zod patterns for ExtractPriceResult and settings schemas"}
+{"file": ".trellis/spec/backend/database.md", "reason": "Drizzle migration conventions for dropping global_settings/user_settings columns"}
+{"file": ".trellis/spec/backend/quality.md", "reason": "Pre-commit checklist (structured logging, no token logging, p-limit)"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Change spans pipeline, env, DB schema, API modules, UI — cross-layer checklist applies"}
