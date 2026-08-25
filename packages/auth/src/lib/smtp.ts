@@ -48,13 +48,26 @@ export async function sendMagicLinkEmail(params: SendMagicLinkParams): Promise<v
   const env = getEnv();
   const safeUrl = escapeHtml(params.url);
 
-  await getSmtpTransporter().sendMail({
-    from: env.SMTP_FROM,
-    to: params.email,
-    subject: "Sign in to Iris",
-    text: `Sign in to Iris using this link: ${params.url}`,
-    html: `<p>Sign in to Iris using this link:</p><p><a href="${safeUrl}">${safeUrl}</a></p>`,
-  });
+  try {
+    await getSmtpTransporter().sendMail({
+      from: env.SMTP_FROM,
+      to: params.email,
+      subject: "Sign in to Iris",
+      text: `Sign in to Iris using this link: ${params.url}`,
+      html: `<p>Sign in to Iris using this link:</p><p><a href="${safeUrl}">${safeUrl}</a></p>`,
+    });
+  } catch (error) {
+    // Structured context only — no secrets (SMTP password is never held here,
+    // and the link URL/HTML body are intentionally excluded). Rethrow so the
+    // caller still surfaces the magic-link send failure to the user.
+    logger.error("Magic link email send failed", {
+      to: params.email,
+      from: env.SMTP_FROM,
+      subject: "Sign in to Iris",
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
 
   logger.info("Magic link email sent", { email: params.email });
 }
