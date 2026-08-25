@@ -67,6 +67,21 @@ const CONTENT_TYPE_EXTENSIONS: Record<string, ContentTypeDescriptor> = {
 
 const DOWNLOAD_TIMEOUT_MS = 45_000;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Estimate the decoded byte length of a base64 string without allocating the
+ * full buffer. Used to reject oversized payloads before `Buffer.from` decodes
+ * them (up to ~13MB base64 → 10MB binary), avoiding a memory spike from a
+ * hostile/misbehaving argus. The estimate is a lower bound of the real length;
+ * the post-decode `MAX_IMAGE_BYTES` check remains as the authoritative guard.
+ */
+function base64DecodedLength(data: string): number {
+  // Strip whitespace Node's base64 decoder tolerates, then account for padding.
+  const stripped = data.replace(/\s/g, "");
+  const padding =
+    stripped.endsWith("==") ? 2 : stripped.endsWith("=") ? 1 : 0;
+  return Math.floor((stripped.length * 3) / 4) - padding;
+}
 const IMAGE_DOWNLOAD_CONCURRENCY = 3;
 const IMAGE_RETRY_MAX = 2;
 const IMAGE_RETRY_BASE_MS = 1_000;
@@ -337,6 +352,18 @@ export async function downloadProductImage(
             return { payload: null, filename: null } as const;
           }
           const { contentType, data } = attempt;
+
+          if (base64DecodedLength(data) > MAX_IMAGE_BYTES) {
+            // Reject before decoding the full buffer; the post-decode check
+            // below is the authoritative guard (defense in depth).
+            logger.warn("Product image too large, skipping", {
+              productId,
+              imageUrl,
+              bytes: base64DecodedLength(data),
+            });
+            return { payload: null, filename: null } as const;
+          }
+
           const buffer = Buffer.from(data, "base64");
 
           if (buffer.byteLength > MAX_IMAGE_BYTES) {
