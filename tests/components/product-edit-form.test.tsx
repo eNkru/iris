@@ -172,3 +172,59 @@ describe("ProductEditForm labels and threshold validation", () => {
     expect(mutateAsync).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("ProductEditForm pause/resume pending split", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("Save and pause have independent pending state (AC1/AC2)", () => {
+    // The component calls useUpdateProduct() twice: first for Save, then for
+    // pause/resume. Return two distinct instances with independent isPending.
+    const saveInstance = {
+      mutate: vi.fn(),
+      mutateAsync: vi.fn().mockResolvedValue({ success: true }),
+      isPending: true, // Save in flight
+    };
+    const pauseInstance = {
+      mutate: vi.fn(),
+      mutateAsync: vi.fn().mockResolvedValue({ success: true }),
+      isPending: false,
+    };
+    mockUseUpdateProduct
+      .mockReturnValueOnce(saveInstance)
+      .mockReturnValueOnce(pauseInstance);
+
+    renderForm(makeProduct({ active: true }));
+
+    // Save is the form's submit button; while its action is pending it renders
+    // the "Saving…" spinner label and is disabled.
+    const saveButton = screen.getByRole("button", { name: "Saving…" });
+    expect(saveButton).toBeDisabled();
+    // The pause button stays enabled (independent pending).
+    expect(screen.getByRole("button", { name: "Pause tracking" })).toBeEnabled();
+  });
+
+  it("pause pending does not disable Save (AC1)", () => {
+    const saveInstance = {
+      mutate: vi.fn(),
+      mutateAsync: vi.fn().mockResolvedValue({ success: true }),
+      isPending: false,
+    };
+    const pauseInstance = {
+      mutate: vi.fn(),
+      mutateAsync: vi.fn().mockResolvedValue({ success: true }),
+      isPending: true, // pause in flight
+    };
+    mockUseUpdateProduct
+      .mockReturnValueOnce(saveInstance)
+      .mockReturnValueOnce(pauseInstance);
+
+    renderForm(makeProduct({ active: true }));
+
+    // Save is enabled (its own action not pending)…
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
+    // …while the pause button renders the spinner label and is disabled.
+    expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+  });
+});

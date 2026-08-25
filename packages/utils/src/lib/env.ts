@@ -35,6 +35,11 @@ export const envSchema = z.object({
   // Scheduler — in-process loop tick
   SCHEDULER_TICK_MS: z.coerce.number().int().positive().default(30_000),
 
+  // Graceful shutdown — hard deadline after SIGTERM/SIGINT before the process
+  // is force-exited (code 1). Guards against a hung in-flight connection keeping
+  // the process alive forever. Default 10s; override for slower drains.
+  SHUTDOWN_FORCE_EXIT_MS: z.coerce.number().int().positive().default(10_000),
+
   // Argus — the single fetch transport. The standalone argus service
   // (../argus) runs the anti-detect Camoufox browser that fetches product
   // pages behind hard anti-bot challenges (DataDome / Cloudflare / Akamai)

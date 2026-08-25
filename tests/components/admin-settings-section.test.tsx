@@ -42,6 +42,8 @@ vi.mock("../../apps/web/src/lib/i18n", () => ({
         "adminSettings.botTokenPlaceholder": "123456:ABC-DEF...",
         "adminSettings.botTokenStored": "Bot token: {token}",
         "adminSettings.botTokenNone": "No bot token configured",
+        "adminSettings.clearToken": "Clear token",
+        "adminSettings.clearTokenConfirm": "Clear the stored token?",
         "adminSettings.intervalLabel": "Poll interval (minutes)",
         "adminSettings.intervalHint": "How often to check prices",
         "adminSettings.intervalInvalid": "Interval must be a positive integer",
@@ -252,5 +254,60 @@ describe("AdminSettingsSection bot token field", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(await screen.findByText("Saved.")).toBeInTheDocument();
+  });
+
+  it("does not render the Clear button when no token is stored", async () => {
+    setLoadedSettings({ telegramBotToken: "" });
+
+    renderSection();
+
+    await screen.findByLabelText("Bot Token");
+    expect(
+      screen.queryByRole("button", { name: "Clear token" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the Clear button when a token is stored", async () => {
+    setLoadedSettings({ telegramBotToken: "•••••xxxx" });
+
+    renderSection();
+
+    await screen.findByLabelText("Bot Token");
+    expect(
+      screen.getByRole("button", { name: "Clear token" }),
+    ).toBeInTheDocument();
+  });
+
+  it("on Clear click: sends telegramBotToken: null after confirm", async () => {
+    const user = userEvent.setup();
+    setLoadedSettings({ telegramBotToken: "•••••xxxx" });
+    // jsdom `window.confirm` defaults to true; keep it explicit.
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    renderSection();
+
+    await screen.findByLabelText("Bot Token");
+    await user.click(screen.getByRole("button", { name: "Clear token" }));
+
+    await waitFor(() => {
+      expect(mutateAsync).toHaveBeenCalledTimes(1);
+    });
+    expect(mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ telegramBotToken: null }),
+    );
+  });
+
+  it("on Clear click: does not send when confirm is dismissed", async () => {
+    const user = userEvent.setup();
+    setLoadedSettings({ telegramBotToken: "•••••xxxx" });
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    renderSection();
+
+    await screen.findByLabelText("Bot Token");
+    await user.click(screen.getByRole("button", { name: "Clear token" }));
+
+    // The confirm was dismissed; no mutation should fire.
+    expect(mutateAsync).not.toHaveBeenCalled();
   });
 });

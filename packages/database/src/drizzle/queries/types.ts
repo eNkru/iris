@@ -12,5 +12,5 @@ export type GlobalSettingsRow = {
 
 export type GlobalSettingsInput = {
   pollIntervalDefaultMinutes?: number;
-  telegramBotToken?: string;
+  telegramBotToken?: string | null;
 };

@@ -120,6 +120,37 @@ export function AdminSettingsSection() {
                   })
                 : t("adminSettings.botTokenNone")}
             </p>
+            {data?.settings.telegramBotToken ? (
+              <button
+                type="button"
+                className="mt-1 text-xs font-medium text-stone-500 underline transition-colors hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:text-stone-400 dark:hover:text-red-400"
+                disabled={updateGlobalSettings.isPending}
+                onClick={async () => {
+                  if (
+                    !window.confirm(t("adminSettings.clearTokenConfirm"))
+                  ) {
+                    return;
+                  }
+                  setErrorMessage(null);
+                  setSavedAt(null);
+                  try {
+                    await updateGlobalSettings.mutateAsync({
+                      telegramBotToken: null,
+                    });
+                    setBotToken("");
+                    setSavedAt(Date.now());
+                  } catch (err) {
+                    setErrorMessage(
+                      err instanceof Error
+                        ? err.message
+                        : t("adminSettings.saveError"),
+                    );
+                  }
+                }}
+              >
+                {t("adminSettings.clearToken")}
+              </button>
+            ) : null}
           </div>
 
           {errorMessage ? <ErrorBox message={errorMessage} /> : null}

@@ -99,4 +99,87 @@ describe("TelegramHelpTooltip", () => {
 
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
+
+  it("toggles the tooltip on click (touch-friendly)", async () => {
+    // Touch pointer: a tap fires click without the mouseenter/mouseleave that
+    // a mouse click would also synthesize, so hover doesn't pin the tooltip
+    // open and the tap genuinely toggles it.
+    const user = userEvent.setup({ pointer: "touch" });
+    render(<TelegramHelpTooltip />);
+
+    const trigger = screen.getByRole("button", { name: "Help" });
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+    await user.click(trigger);
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+
+    await user.click(trigger);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("Enter and Space pin the tooltip open (keyboard toggle)", async () => {
+    const user = userEvent.setup();
+    render(<TelegramHelpTooltip />);
+
+    // Tab to the trigger so the focus event propagates through React's
+    // synthetic event system (a direct `.focus()` call does not open it in
+    // jsdom the same way `user.tab()` does).
+    await user.tab();
+    const trigger = screen.getByRole("button", { name: "Help" });
+    // Focus alone opens the tooltip (existing behavior, preserved).
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+
+    // Enter pins it (sticky); still open.
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+
+    // Space unpins and force-closes; focus remains on the trigger so the
+    // tooltip stays closed until the user re-focuses.
+    await user.keyboard(" ");
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("closes the tooltip on Escape and returns focus to the trigger", async () => {
+    // Touch pointer avoids a lingering hover state that would reopen the
+    // tooltip after Escape clears the explicit-open flags.
+    const user = userEvent.setup({ pointer: "touch" });
+    render(<TelegramHelpTooltip />);
+
+    const trigger = screen.getByRole("button", { name: "Help" });
+    await user.click(trigger);
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("closes the tooltip on outside click", async () => {
+    const user = userEvent.setup({ pointer: "touch" });
+    render(
+      <>
+        <TelegramHelpTooltip />
+        <button type="button">Outside</button>
+      </>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Help" }));
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Outside" }));
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("links the trigger to the tooltip via aria-describedby when open", async () => {
+    const user = userEvent.setup({ pointer: "touch" });
+    render(<TelegramHelpTooltip />);
+
+    const trigger = screen.getByRole("button", { name: "Help" });
+    // Hidden by default — no describedby until the tooltip is rendered.
+    expect(trigger).not.toHaveAttribute("aria-describedby");
+
+    await user.click(trigger);
+    const tooltip = screen.getByRole("tooltip");
+    expect(trigger.getAttribute("aria-describedby")).toBe(tooltip.id);
+  });
 });

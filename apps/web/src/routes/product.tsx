@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useCheckNow, useProduct } from "../hooks/use-products";
 import { AppShell } from "../components/app-shell";
@@ -24,6 +24,13 @@ export function ProductDetailPage() {
   const { data, isLoading, isError, error } = useProduct(id);
   const checkNow = useCheckNow();
   const [checkError, setCheckError] = useState<string | null>(null);
+
+  // Reset stale mutation state when navigating between products so the
+  // previous product's check-now result/banner doesn't render on the new one.
+  useEffect(() => {
+    checkNow.reset();
+    setCheckError(null);
+  }, [id, checkNow]);
 
   if (isLoading) {
     return (
