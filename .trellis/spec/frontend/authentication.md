@@ -96,7 +96,7 @@ Wrap your application with a SessionProvider to manage session state:
 "use client";
 import { authClient } from "@your-app/auth/client"; // Replace with your monorepo package path
 import { useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode } from "react";
 import { SessionContext } from "../lib/session-context";
 
 // Query key for session caching
@@ -127,14 +127,15 @@ export const useSessionQuery = () => {
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  const { data: session } = useSessionQuery();
-  const [loaded, setLoaded] = useState(!!session);
-
-  useEffect(() => {
-    if (session && !loaded) {
-      setLoaded(true);
-    }
-  }, [session, loaded]);
+  // Derive `loaded` from the query's SETTLED state, not a truthy `data` check.
+  // better-auth `/get-session` returns `null` (not `{ session: null, user: null }`)
+  // when signed out, so a `data`-truthy gate would never flip and an expired/
+  // revoked session (cookie present, server session dead) would hang the
+  // client on a perpetual spinner. The same applies to a `/get-session` network
+  // error: `retry: false` settles the query to `isError`.
+  const query = useSessionQuery();
+  const loaded = query.isSuccess || query.isError;
+  const session = query.data;
 
   return (
     <SessionContext.Provider

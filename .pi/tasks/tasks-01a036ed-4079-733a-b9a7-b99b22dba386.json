@@ -1,0 +1,65 @@
+{
+  "nextId": 6,
+  "tasks": [
+    {
+      "id": "1",
+      "subject": "Read backend spec rules",
+      "description": "Read all .trellis/spec/backend/*.md and shared/*.md files to understand the project's mandatory quality rules before reviewing code.",
+      "status": "completed",
+      "activeForm": "Reading backend spec rules",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1787627940139,
+      "updatedAt": 1787628040503
+    },
+    {
+      "id": "2",
+      "subject": "Review database package",
+      "description": "Read and review every file in packages/database/src/**, drizzle.config.ts, package.json, tsconfig.json. Schema, queries, client, env, seed.",
+      "status": "completed",
+      "activeForm": "Reviewing database package",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1787627940140,
+      "updatedAt": 1787628065452
+    },
+    {
+      "id": "3",
+      "subject": "Review auth package",
+      "description": "Read and review every file in packages/auth/src/**. auth.ts, client.ts, bootstrap-admin, session-cache, smtp, index.",
+      "status": "completed",
+      "activeForm": "Reviewing auth package",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1787627940141,
+      "updatedAt": 1787628092296
+    },
+    {
+      "id": "4",
+      "subject": "Review api package",
+      "description": "Read and review every file in packages/api/src/**. orpc router/middleware/procedures, all modules (admin, channels, health, history, products, settings), shared, index.",
+      "status": "completed",
+      "activeForm": "Reviewing api package",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1787627940142,
+      "updatedAt": 1787628379011
+    },
+    {
+      "id": "5",
+      "subject": "Compile review report",
+      "description": "Aggregate findings grouped by severity, strengths, and rule-compliance spot check table. Return structured report.",
+      "status": "completed",
+      "activeForm": "Compiling review report",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1787627940143,
+      "updatedAt": 1787628416293
+    }
+  ]
+}

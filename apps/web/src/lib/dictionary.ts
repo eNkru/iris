@@ -207,6 +207,16 @@ const en = {
   "detail.checkFailed": "Check failed: {reason}",
   "detail.priceHistory": "Price history",
   "detail.settings": "Settings",
+
+  // Global error boundary (render-path errors)
+  "errorBoundary.title": "Something went wrong",
+  "errorBoundary.description": "An unexpected error occurred while rendering this page. You can reload to try again.",
+  "errorBoundary.reload": "Reload page",
+
+  // Not-found route
+  "notFound.title": "Page not found",
+  "notFound.description": "The page you’re looking for doesn’t exist or may have moved.",
+  "notFound.backHome": "Back to products",
 } as const;
 
 export type DictKey = keyof typeof en;
@@ -408,6 +418,16 @@ const zh: Dictionary = {
   "detail.checkFailed": "检查失败：{reason}",
   "detail.priceHistory": "价格历史",
   "detail.settings": "设置",
+
+  // Global error boundary (render-path errors)
+  "errorBoundary.title": "出错了",
+  "errorBoundary.description": "渲染此页面时发生了意外错误。你可以重新加载以重试。",
+  "errorBoundary.reload": "重新加载页面",
+
+  // Not-found route
+  "notFound.title": "页面不存在",
+  "notFound.description": "你访问的页面不存在或可能已被移动。",
+  "notFound.backHome": "返回商品列表",
 };
 
 const dictionaries: Record<Lang, Dictionary> = { en, zh };
