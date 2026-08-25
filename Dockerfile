@@ -2,18 +2,26 @@
 # Iris all-in-one image: Hono server + Vite SPA + scheduler — a single Node
 # process. Anti-detect page fetching runs in the external argus service
 # (deployed from the argus repo); iris calls it over HTTP with bearer auth.
-FROM node:22-bookworm-slim
+#
+# Multi-stage build:
+#   - builder: installs build toolchain (build-essential/python3 for
+#     better-sqlite3's node-gyp) and builds the SPA + esbuild server bundle.
+#   - runner: slim runtime with no compilers; runs as the non-root `node` user.
+
+# -----------------------------------------------------------------------------
+# Stage 1: builder
+# -----------------------------------------------------------------------------
+FROM node:22-bookworm-slim AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 # build-essential + python3 are needed by better-sqlite3's node-gyp build
-# during `pnpm install`. ca-certificates for TLS. wget for the healthcheck.
+# during `pnpm install`. ca-certificates for TLS.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
         python3 \
-        wget \
     && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable && corepack prepare pnpm@11.18.0 --activate
@@ -56,8 +64,44 @@ RUN pnpm --filter @iris/web build \
     && rm -rf /root/.cache/pnpm \
     && rm -rf /app/data
 
+# -----------------------------------------------------------------------------
+# Stage 2: runner (no compilers, non-root)
+# -----------------------------------------------------------------------------
+FROM node:22-slim AS runner
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Runtime apt deps only: ca-certificates for TLS, wget for the healthcheck.
+# No build-essential / python3 — the final image carries no compilers.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# pnpm is needed at runtime for `pnpm db:migrate` in the entrypoint. Copy the
+# corepack-installed pnpm from the builder so the runner doesn't download it
+# at boot (offline-friendly, deterministic).
+COPY --from=builder /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/corepack
+COPY --from=builder /usr/local/bin/corepack /usr/local/bin/corepack
+RUN corepack enable
+
+WORKDIR /app
+
+# Copy the built application + its node_modules (including the better-sqlite3
+# native build and pnpm's virtual-store symlinks) from the builder. Copying
+# the whole /app preserves the pnpm symlink layout Vite/esbuild rely on.
+COPY --from=builder /app /app
+
+# The SQLite database lives under /app/data; ensure the non-root `node` user
+# (uid 1000, shipped by the node base image) can write it.
+RUN mkdir -p /app/data && chown -R node:node /app
+
 COPY docker-entrypoint.sh /usr/local/bin/iris-app-start
 RUN chmod +x /usr/local/bin/iris-app-start
+
+# Drop privileges — run as the non-root `node` user.
+USER node
 
 VOLUME ["/app/data"]
 EXPOSE 3000
