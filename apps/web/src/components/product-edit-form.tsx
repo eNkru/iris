@@ -12,7 +12,12 @@ import { Button, ButtonSecondary, ErrorBox, Input, Label, Spinner } from "./ui";
  */
 export function ProductEditForm({ product }: { product: ProductOutput }) {
   const { t } = useI18n();
+  // Two mutation instances so Save and pause/resume have independent pending
+  // state: saving doesn't disable the pause button and vice versa. Both
+  // invalidate the same product query, so invalidation is harmless when both
+  // run (idempotent).
   const updateProduct = useUpdateProduct();
+  const pauseProduct = useUpdateProduct();
   const intervalId = useId();
   const risePctId = useId();
   const fallPctId = useId();
@@ -192,13 +197,17 @@ export function ProductEditForm({ product }: { product: ProductOutput }) {
           type="button"
           onClick={() => {
             setError(null);
-            updateProduct.mutate({ id: product.id, active: !product.active }, {
+            pauseProduct.mutate({ id: product.id, active: !product.active }, {
               onError: (err) => setError(err.message),
             });
           }}
-          disabled={updateProduct.isPending}
+          disabled={pauseProduct.isPending}
         >
-          {product.active ? t("editForm.pause") : t("editForm.resume")}
+          {pauseProduct.isPending ? (
+            <Spinner label={t("editForm.saving")} />
+          ) : (
+            product.active ? t("editForm.pause") : t("editForm.resume")
+          )}
         </ButtonSecondary>
       </div>
     </form>
