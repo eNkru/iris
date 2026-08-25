@@ -2,10 +2,13 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { orpcClient } from "../lib/orpc";
+import { orpc } from "../lib/orpc-query-utils";
 
 /**
  * Product queries + mutations (frontend/hooks.md). Types are inferred directly
- * from the oRPC client — never redefined (shared/typescript.md).
+ * from the oRPC client — never redefined (shared/typescript.md). Query keys
+ * use the oRPC-generated helpers (frontend/orpc-usage.md §7.1) so cache identity
+ * and invalidation targets stay in sync with the router.
  */
 
 export type CreateProductInput = Parameters<(typeof orpcClient)["products"]["create"]>[0];
@@ -21,22 +24,19 @@ export type ProductHistory = Awaited<
 >["history"];
 export type CheckNowOutput = Awaited<ReturnType<(typeof orpcClient)["products"]["checkNow"]>>;
 
-/** Base key for all product list queries — used for broad invalidation. */
-export const PRODUCTS_KEY = ["products"] as const;
-
 export function useProducts(active?: boolean) {
-  return useQuery({
-    queryKey: [...PRODUCTS_KEY, { active: active ?? "all" }],
-    queryFn: () => orpcClient.products.list(active !== undefined ? { active } : {}),
-    // Keep the home-page list fresh while mounted (R6). Only this query opts in.
-    refetchInterval: 30_000,
-  });
+  return useQuery(
+    orpc.products.list.queryOptions({
+      input: active !== undefined ? { active } : {},
+      // Keep the home-page list fresh while mounted (R6). Only this query opts in.
+      refetchInterval: 30_000,
+    }),
+  );
 }
 
 export function useProduct(productId: string) {
   return useQuery({
-    queryKey: ["product", productId],
-    queryFn: () => orpcClient.products.get({ id: productId }),
+    ...orpc.products.get.queryOptions({ input: { id: productId } }),
     enabled: productId.length > 0,
   });
 }
@@ -47,7 +47,7 @@ export function useCreateProduct() {
   return useMutation<CreateProductOutput, Error, CreateProductInput>({
     mutationFn: (input) => orpcClient.products.create(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: PRODUCTS_KEY });
+      queryClient.invalidateQueries({ queryKey: orpc.products.list.key() });
     },
   });
 }
@@ -58,9 +58,9 @@ export function useUpdateProduct() {
   return useMutation({
     mutationFn: (input: Parameters<(typeof orpcClient)["products"]["update"]>[0]) =>
       orpcClient.products.update(input),
-    onSuccess: (_updated, variables) => {
-      queryClient.invalidateQueries({ queryKey: PRODUCTS_KEY });
-      queryClient.invalidateQueries({ queryKey: ["product", variables.id] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: orpc.products.list.key() });
+      queryClient.invalidateQueries({ queryKey: orpc.products.get.key() });
     },
   });
 }
@@ -71,7 +71,7 @@ export function useDeleteProduct() {
   return useMutation({
     mutationFn: (id: string) => orpcClient.products.delete({ id }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: PRODUCTS_KEY });
+      queryClient.invalidateQueries({ queryKey: orpc.products.list.key() });
     },
   });
 }
@@ -81,9 +81,9 @@ export function useCheckNow() {
 
   return useMutation<CheckNowOutput, Error, { id: string }>({
     mutationFn: ({ id }) => orpcClient.products.checkNow({ id }),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: PRODUCTS_KEY });
-      queryClient.invalidateQueries({ queryKey: ["product", variables.id] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: orpc.products.list.key() });
+      queryClient.invalidateQueries({ queryKey: orpc.products.get.key() });
     },
   });
 }

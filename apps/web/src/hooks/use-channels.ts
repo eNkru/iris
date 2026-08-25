@@ -2,22 +2,19 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { orpcClient } from "../lib/orpc";
+import { orpc } from "../lib/orpc-query-utils";
 
 /**
- * Alert channel queries + mutations (R11/R12).
+ * Alert channel queries + mutations (R11/R12). Query keys use the
+ * oRPC-generated helpers (frontend/orpc-usage.md §7.1).
  */
 
 export type Channel = Awaited<
   ReturnType<(typeof orpcClient)["channels"]["list"]>
 >["channels"][number];
 
-export const CHANNELS_KEY = ["channels"] as const;
-
 export function useChannels() {
-  return useQuery({
-    queryKey: CHANNELS_KEY,
-    queryFn: () => orpcClient.channels.list(),
-  });
+  return useQuery(orpc.channels.list.queryOptions({ input: {} }));
 }
 
 export function useCreateChannel() {
@@ -27,7 +24,7 @@ export function useCreateChannel() {
     mutationFn: (input: Parameters<(typeof orpcClient)["channels"]["create"]>[0]) =>
       orpcClient.channels.create(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: CHANNELS_KEY });
+      queryClient.invalidateQueries({ queryKey: orpc.channels.list.key() });
     },
   });
 }
@@ -39,7 +36,7 @@ export function useUpdateChannel() {
     mutationFn: (input: Parameters<(typeof orpcClient)["channels"]["update"]>[0]) =>
       orpcClient.channels.update(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: CHANNELS_KEY });
+      queryClient.invalidateQueries({ queryKey: orpc.channels.list.key() });
     },
   });
 }
@@ -50,7 +47,7 @@ export function useDeleteChannel() {
   return useMutation({
     mutationFn: (id: string) => orpcClient.channels.delete({ id }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: CHANNELS_KEY });
+      queryClient.invalidateQueries({ queryKey: orpc.channels.list.key() });
     },
   });
 }
