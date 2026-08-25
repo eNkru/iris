@@ -78,6 +78,28 @@ describe("extractPrice", () => {
     expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({ url: URL });
   });
 
+  it("accepts a JSON number price as well as a string price", async () => {
+    // The argus contract returns 2dp strings, but the Zod schema also accepts
+    // a JSON number so a future argus change doesn't silently break extraction.
+    fakeFetchResponses([
+      () =>
+        argusJson({
+          ok: true,
+          source: "jsonld",
+          url: URL,
+          available: true,
+          price: 42.5,
+          currency: "NZD",
+          name: null,
+          jsonld: null,
+        }),
+    ]);
+
+    const result = await extractPrice(URL, OPTS);
+
+    expect(result).toMatchObject({ kind: "ok", available: true, price: 42.5 });
+  });
+
   it("returns a non-retryable block immediately (single call)", async () => {
     const { calls } = fakeFetchResponses([
       () =>

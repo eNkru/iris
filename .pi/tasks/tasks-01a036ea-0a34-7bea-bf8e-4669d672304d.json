@@ -53,25 +53,25 @@
       "id": "9",
       "subject": "Stop overwriting product currency with null on price change",
       "description": "High data integrity. `packages/prices/src/pipeline/check-price.ts:151-153` sets `currency: extraction.currency` on every price change. `types.ts` documents that `extraction.currency` may be `null` when argus can't determine one, so a single transient null clobbers a previously-correct currency on the product row and in subsequent alerts. Fix: mirror the `name` pattern — `currency: extraction.currency ?? locked.currency ?? null` (prefer the fresh value, fall back to the stored value). Add a unit test covering a null-currency extraction after a known-currency check.",
-      "status": "in_progress",
+      "status": "completed",
       "activeForm": "Fixing currency overwrite on price change",
       "metadata": {},
       "blocks": [],
       "blockedBy": [],
       "createdAt": 1787629900671,
-      "updatedAt": 1787631034465
+      "updatedAt": 1787631171790
     },
     {
       "id": "10",
       "subject": "Validate argus extract-price response with Zod",
       "description": "High rule violation. `packages/prices/src/pipeline/extract-price.ts:130-180` validates the argus HTTP response with ad-hoc `typeof` checks; `extract-image.ts` does the same. The project rule is \"external API responses should be validated with Zod.\" The existing `priceExtractionSchema` in `pipeline/types.ts` is dead code from the old in-process AI pipeline. Fix: define a Zod schema for the argus `{ ok: true, url, available, price, currency, name, jsonld }` and `{ ok: false, reason, signature, retryable }` shapes and `.safeParse()` the payload, mapping parse failure to the right `retryable-error`/`terminal-error` decision. This also subsumes the \"accept numeric price\" fix (#18) since the schema can coerce/accept both string and number.",
-      "status": "pending",
+      "status": "in_progress",
       "activeForm": "Validating argus response with Zod",
       "metadata": {},
       "blocks": [],
       "blockedBy": [],
       "createdAt": 1787629900672,
-      "updatedAt": 1787629900672
+      "updatedAt": 1787631171792
     },
     {
       "id": "11",
