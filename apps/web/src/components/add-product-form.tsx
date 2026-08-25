@@ -18,6 +18,9 @@ export function AddProductForm() {
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
+    // Clear the previous success banner before the new attempt so a stale
+    // "added" result doesn't linger while the new add is pending.
+    createProduct.reset();
 
     if (!url.trim()) {
       setError(t("addProduct.empty"));
