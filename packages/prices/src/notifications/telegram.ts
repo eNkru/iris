@@ -17,6 +17,13 @@ import { formatPriceAlertMessage, type PriceAlertNotification } from "./format";
 const TELEGRAM_CONCURRENCY = 5;
 const TELEGRAM_TIMEOUT_MS = 10_000;
 const TELEGRAM_API_BASE_URL = "https://api.telegram.org";
+/** Max send attempts for a transient Telegram failure (429 / 5xx). */
+const TELEGRAM_MAX_ATTEMPTS = 3;
+/** Cap on a Telegram 429 `Retry-After` wait, in ms (don't park a limiter slot forever). */
+const TELEGRAM_RETRY_AFTER_CAP_MS = 60_000;
+/** Base backoff for 5xx retries (exponential: 1s, 2s, 4s …). */
+const TELEGRAM_RETRY_BASE_MS = 1_000;
+const TELEGRAM_RETRY_MAX_MS = 10_000;
 
 const telegramLimiter = pLimit(TELEGRAM_CONCURRENCY);
 
@@ -37,6 +44,23 @@ async function resolveBotToken(): Promise<string> {
  */
 function stripHtmlTags(html: string): string {
   return html.replace(/<[^>]+>/g, "");
+}
+
+/**
+ * Parse Telegram's `Retry-After` header (seconds) into ms. Returns `undefined`
+ * when absent or unparseable so the caller falls back to exponential backoff.
+ * Telegram sends 429 with either `retry_after` in the JSON body or a
+ * `Retry-After` header; we check both.
+ */
+function parseTelegramRetryAfter(response: Response): number | undefined {
+  const header = response.headers.get("retry-after");
+  if (header) {
+    const seconds = Number(header);
+    if (Number.isFinite(seconds) && seconds > 0) {
+      return seconds * 1_000;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -81,29 +105,81 @@ export async function sendTelegramText(
       const body = await response.text().catch(() => "");
       const error = new Error(`Telegram API responded ${response.status}: ${body.slice(0, 200)}`);
       (error as Error & { status?: number }).status = response.status;
+      (error as Error & { retryAfterMs?: number }).retryAfterMs =
+        parseTelegramRetryAfter(response);
       throw error;
     }
   };
 
-  try {
-    await telegramLimiter(async () => {
+  /**
+   * Send with a bounded retry on transient Telegram failures:
+   *   - 429 → honor `Retry-After` (capped), one retry per response.
+   *   - 500/502/503/504 → exponential backoff.
+   *   - 400 (bad markup) → one HTML→plaintext fallback (existing behavior).
+   *   - 401/403 and other 4xx → terminal, not retried.
+   * Never throws; failures are logged and swallowed.
+   */
+  const sendWithRetry = async (): Promise<boolean> => {
+    let parseMode: "HTML" | undefined = "HTML";
+    let usedPlainFallback = false;
+    for (let attempt = 1; attempt <= TELEGRAM_MAX_ATTEMPTS; attempt++) {
       try {
-        await post("HTML");
+        await post(parseMode);
+        return true;
       } catch (error) {
-        if ((error as Error & { status?: number }).status === 400) {
+        const status = (error as Error & { status?: number }).status;
+        const retryable =
+          status === 429 || (typeof status === "number" && status >= 500 && status <= 599);
+
+        // 400 bad markup: retry once as plain text (not counted against the
+        // transient-retry budget once we've switched).
+        if (status === 400 && !usedPlainFallback) {
           logger.warn("Telegram rejected HTML markup; retrying as plain text", {
             chatId,
             error: error instanceof Error ? error.message : String(error),
             ...meta,
           });
-          await post(undefined);
-          return;
+          parseMode = undefined;
+          usedPlainFallback = true;
+          continue;
         }
-        throw error;
-      }
-    });
 
-    logger.info("Telegram message sent", { chatId, ...meta });
+        if (!retryable || attempt >= TELEGRAM_MAX_ATTEMPTS) {
+          return false;
+        }
+
+        const delay =
+          status === 429
+            ? Math.min(
+                (error as Error & { retryAfterMs?: number }).retryAfterMs ??
+                  TELEGRAM_RETRY_BASE_MS * 2 ** (attempt - 1),
+                TELEGRAM_RETRY_AFTER_CAP_MS,
+              )
+            : Math.min(
+                TELEGRAM_RETRY_BASE_MS * 2 ** (attempt - 1),
+                TELEGRAM_RETRY_MAX_MS,
+              );
+
+        logger.warn("Telegram transient error, retrying", {
+          chatId,
+          attempt,
+          delayMs: Math.round(delay),
+          error: error instanceof Error ? error.message : String(error),
+          ...meta,
+        });
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+    return false;
+  };
+
+  try {
+    const sent = await telegramLimiter(sendWithRetry);
+    if (sent) {
+      logger.info("Telegram message sent", { chatId, ...meta });
+    } else {
+      logger.error("Telegram message failed", { chatId, ...meta });
+    }
   } catch (error) {
     logger.error("Telegram message failed", {
       chatId,

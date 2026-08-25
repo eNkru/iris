@@ -228,8 +228,81 @@ describe("sendTelegramText HTTP responses", () => {
     errorSpy.mockRestore();
   });
 
-  it("logs error and swallows (no retry) on a 5xx response", async () => {
-    const { spy } = fakeFetch([() => httpError(502, "upstream")]);
+  it("retries a 5xx with backoff, then succeeds on attempt 2", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    const { spy } = fakeFetch([
+      () => httpError(502, "upstream"),
+      () => okResponse(),
+    ]);
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+
+    const pending = sendTelegramText("123456", "hello");
+    await vi.advanceTimersByTimeAsync(2_000);
+    await pending;
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(warnSpy).toHaveBeenCalledWith(
+      "Telegram transient error, retrying",
+      expect.objectContaining({ chatId: "123456", attempt: 1 }),
+    );
+    warnSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("honors 429 Retry-After then succeeds", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    const { spy } = fakeFetch([
+      () => {
+        const res = httpError(429, "slow down");
+        // Telegram sends Retry-After in seconds.
+        res.headers.set("retry-after", "3");
+        return res;
+      },
+      () => okResponse(),
+    ]);
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+
+    const pending = sendTelegramText("123456", "hello");
+    // Retry-After: 3s → 3000ms.
+    await vi.advanceTimersByTimeAsync(3_000);
+    await pending;
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(warnSpy).toHaveBeenCalledWith(
+      "Telegram transient error, retrying",
+      expect.objectContaining({ chatId: "123456", attempt: 1, delayMs: 3_000 }),
+    );
+    warnSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("exhausts the retry budget on persistent 5xx and logs a terminal error", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    const { spy } = fakeFetch([
+      () => httpError(503, "down"),
+      () => httpError(503, "down"),
+      () => httpError(503, "down"),
+    ]);
+    const errorSpy = vi.spyOn(logger, "error").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+
+    const pending = sendTelegramText("123456", "hello");
+    await vi.advanceTimersByTimeAsync(10_000);
+    await pending;
+
+    // 3 attempts total (TELEGRAM_MAX_ATTEMPTS).
+    expect(spy).toHaveBeenCalledTimes(3);
+    expect(errorSpy).toHaveBeenCalledWith(
+      "Telegram message failed",
+      expect.objectContaining({ chatId: "123456" }),
+    );
+    errorSpy.mockRestore();
+    warnSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("does not retry a 401 auth failure", async () => {
+    const { spy } = fakeFetch([() => httpError(401, "unauthorized")]);
     const errorSpy = vi.spyOn(logger, "error").mockImplementation(() => {});
     const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
 
@@ -241,8 +314,8 @@ describe("sendTelegramText HTTP responses", () => {
       "Telegram message failed",
       expect.objectContaining({ chatId: "123456" }),
     );
-    warnSpy.mockRestore();
     errorSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 });
 
