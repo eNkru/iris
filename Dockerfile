@@ -48,15 +48,15 @@ RUN pnpm install --frozen-lockfile \
 COPY . .
 
 # Server-only modules validate their environment while the server builds.
-# The ARGUS_* values are build-time placeholders only — the runtime values
-# come from the compose environment (ARGUS_API_TOKEN is a secret and is
-# never baked into an image layer).
+# The ARGUS_BASE_URL build-time default is a non-secret convenience only;
+# ARGUS_API_TOKEN is a runtime secret supplied via compose `environment:` (or
+# `docker run -e`) and is intentionally NOT baked into an image layer. A
+# missing runtime token fails env validation fast at boot instead of
+# surfacing as a confusing argus 401 deep in the pipeline.
 ARG DATABASE_PATH=/app/data/iris.db
 ARG ARGUS_BASE_URL=http://localhost:8000
-ARG ARGUS_API_TOKEN=build-time-placeholder
 ENV DATABASE_PATH=${DATABASE_PATH}
 ENV ARGUS_BASE_URL=${ARGUS_BASE_URL}
-ENV ARGUS_API_TOKEN=${ARGUS_API_TOKEN}
 ENV NODE_ENV=production
 
 RUN pnpm --filter @iris/web build \
