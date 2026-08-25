@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n vite,server -c magenta,cyan \"vite\" \"tsx watch server.ts\"",
+    "dev": "concurrently -n vite,server -c magenta,cyan \"vite\" \"PORT=3001 tsx watch server.ts\"",
     "build": "vite build",
     "server:build": "esbuild server.ts --bundle --platform=node --format=cjs --outfile=dist-server/server.cjs --external:better-sqlite3",
     "start": "node dist-server/server.cjs",

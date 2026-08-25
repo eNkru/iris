@@ -17,25 +17,25 @@
       "id": "6",
       "subject": "Enforce BETTER_AUTH_SECRET in production (no silent dev default)",
       "description": "High security. `packages/utils/src/lib/env.ts:25` gives `BETTER_AUTH_SECRET` a silent default `\"dev-secret-change-me\"` and `docker-compose.yml:25` mirrors it (`${BETTER_AUTH_SECRET:-dev-secret-change-me}`). A production deploy missing the var silently signs sessions/magic-links with a publicly-known secret → trivial session forgery (admin takeover). Fix: make it required in production via `.refine((v) => NODE_ENV !== \"production\" || (process.env.BETTER_AUTH_SECRET && v !== \"dev-secret-change-me\"), …)` (or remove the default entirely like `ARGUS_API_TOKEN`). In `docker-compose.yml` use `${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET in .env}` to fail fast. Matches the README's \"always override in production\" with actual enforcement.",
-      "status": "pending",
+      "status": "completed",
       "activeForm": "Enforcing BETTER_AUTH_SECRET in production",
       "metadata": {},
       "blocks": [],
       "blockedBy": [],
       "createdAt": 1787629900668,
-      "updatedAt": 1787629900668
+      "updatedAt": 1787630599733
     },
     {
       "id": "7",
       "subject": "Align dev server port with Vite proxy",
       "description": "High — blocks local dev. `apps/web/vite.config.ts:46` proxies `/api` to `http://localhost:3001`, but `apps/web/server.ts:139` hardcodes `serve({ …, port: 3000 })`. No `PORT` env exists anywhere. Dev API calls all ECONNREFUSED. Fix: make the port configurable — `serve({ fetch: app.fetch, port: Number(process.env.PORT ?? 3000) })` and run the dev server with `PORT=3001` (or change the Vite proxy target to `:3000`). Align whatever side is wrong; the vite.config comment says the intent is `:3001`.",
-      "status": "pending",
+      "status": "in_progress",
       "activeForm": "Aligning dev server port",
       "metadata": {},
       "blocks": [],
       "blockedBy": [],
       "createdAt": 1787629900669,
-      "updatedAt": 1787629900669
+      "updatedAt": 1787630599739
     },
     {
       "id": "8",
