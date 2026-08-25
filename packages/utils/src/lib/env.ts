@@ -21,7 +21,8 @@ export const envSchema = z.object({
   SMTP_PASS: z.string().default(""),
   SMTP_FROM: z.string().min(1).default("noreply@localhost"),
 
-  // better-auth session signing secret. MUST be replaced in production.
+  // better-auth session signing secret. MUST be replaced in production; the
+  // schema below rejects the dev default when NODE_ENV === "production".
   BETTER_AUTH_SECRET: z.string().min(1).default("dev-secret-change-me"),
 
   // Telegram alert channel
@@ -45,7 +46,25 @@ export const envSchema = z.object({
   // Bearer token for argus /v1/* routes. Secret — never log it; it is only
   // ever placed in an Authorization header.
   ARGUS_API_TOKEN: z.string().min(1, "ARGUS_API_TOKEN is required"),
-});
+})
+  // Enforce that the session-signing secret is NOT the committed dev default
+  // in production. The dev default is fine for local `pnpm dev` (NODE_ENV is
+  // development), but a production deploy that forgot to override it would
+  // otherwise sign every session/magic-link with a publicly-known value →
+  // trivial session forgery. Fail fast at first `getEnv()` instead.
+  .superRefine((env, ctx) => {
+    if (
+      env.NODE_ENV === "production" &&
+      env.BETTER_AUTH_SECRET === "dev-secret-change-me"
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["BETTER_AUTH_SECRET"],
+        message:
+          "BETTER_AUTH_SECRET must be set to a real secret in production (generate with: openssl rand -base64 32). The 'dev-secret-change-me' default is committed and unsafe.",
+      });
+    }
+  });
 
 export type Env = z.infer<typeof envSchema>;
 
