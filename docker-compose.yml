@@ -8,6 +8,11 @@ services:
       args:
         DATABASE_PATH: /app/data/iris.db
     restart: unless-stopped
+    # Lets the container resolve host.docker.internal on LINUX hosts too (QNAP
+    # etc.) where argus may run on the same machine as the container. On Docker
+    # Desktop (macOS/Windows) the name already resolves natively.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       NODE_ENV: production
       APP_URL: ${APP_URL:-http://localhost:3000}
