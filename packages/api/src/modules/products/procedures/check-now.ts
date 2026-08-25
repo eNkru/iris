@@ -34,7 +34,13 @@ export const checkProductNow = protectedProcedure
     const check = await checkPrice(id);
 
     if (check.status === "not_found") {
-      throw new ORPCError("NOT_FOUND", { message: "Product not found" });
+      // Argus reached the page but it's gone (HTTP 404 / blocked / delisted) —
+      // distinct from the DB-missing-product guard above. The product row
+      // still exists; only its source page is unreachable, so surface a
+      // page-not-found message instead of the misleading "Product not found".
+      throw new ORPCError("NOT_FOUND", {
+        message: "The product page could not be found",
+      });
     }
 
     return {
