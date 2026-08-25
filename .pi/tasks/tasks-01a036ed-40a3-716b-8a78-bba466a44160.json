@@ -1,0 +1,38 @@
+{
+  "nextId": 4,
+  "tasks": [
+    {
+      "id": "1",
+      "subject": "Read top-level config files (server.ts, env.ts, vite.config.ts, index.html)",
+      "description": "Review the production Hono server entry for SPA fallback, caching, security headers, env handling, graceful shutdown.",
+      "status": "completed",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1787627935699,
+      "updatedAt": 1787627959299
+    },
+    {
+      "id": "2",
+      "subject": "Read app entry, lib, routes, components, hooks",
+      "description": "Read app.tsx, main.tsx, lib/* (orpc, session-context, theme, i18n, dictionary, project-links), routes/*, components/*, hooks/*",
+      "status": "completed",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1787627935701,
+      "updatedAt": 1787628867315
+    },
+    {
+      "id": "3",
+      "subject": "Analyze findings against mandatory rules and produce report",
+      "description": "Cross-reference findings against .trellis/spec rules and produce the structured report.",
+      "status": "completed",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1787627935702,
+      "updatedAt": 1787628878298
+    }
+  ]
+}
