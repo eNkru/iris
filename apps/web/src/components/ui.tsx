@@ -248,11 +248,13 @@ export function SegmentedControl<T extends string>({
   value,
   onChange,
   label,
+  disabled,
 }: {
   options: readonly { value: T; label: string }[];
   value: T;
   onChange: (value: T) => void;
   label: string;
+  disabled?: boolean;
 }) {
   return (
     <div
@@ -267,6 +269,7 @@ export function SegmentedControl<T extends string>({
             key={option.value}
             type="button"
             aria-pressed={active}
+            disabled={disabled}
             onClick={() => onChange(option.value)}
             className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${focusRing} ${
               active

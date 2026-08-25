@@ -41,6 +41,9 @@ export function ChannelsSection() {
   const [language, setLanguage] = useState<"en" | "zh">("en");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  /** id of the channel currently being updated (enable/disable or language).
+   *  Only that row shows pending state; other rows stay interactive. */
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const channels = data?.channels ?? [];
 
@@ -113,21 +116,30 @@ export function ChannelsSection() {
                     label={t("channels.languageLabel")}
                     options={LANGUAGE_OPTIONS}
                     value={lang}
-                    onChange={(next) =>
+                    disabled={updatingId === channel.id}
+                    onChange={(next) => {
+                      setUpdatingId(channel.id);
                       updateChannel.mutate(
                         { id: channel.id, language: next },
-                        { onError: (err) => setErrorMessage(err.message) },
-                      )
-                    }
+                        {
+                          onSettled: () => setUpdatingId(null),
+                          onError: (err) => setErrorMessage(err.message),
+                        },
+                      );
+                    }}
                   />
                   <ButtonSecondary
-                    onClick={() =>
+                    onClick={() => {
+                      setUpdatingId(channel.id);
                       updateChannel.mutate(
                         { id: channel.id, enabled: !channel.enabled },
-                        { onError: (err) => setErrorMessage(err.message) },
-                      )
-                    }
-                    disabled={updateChannel.isPending}
+                        {
+                          onSettled: () => setUpdatingId(null),
+                          onError: (err) => setErrorMessage(err.message),
+                        },
+                      );
+                    }}
+                    disabled={updatingId === channel.id}
                   >
                     {channel.enabled ? t("channels.disable") : t("channels.enable")}
                   </ButtonSecondary>
