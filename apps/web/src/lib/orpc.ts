@@ -3,6 +3,7 @@
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ApiRouterClient } from "@iris/api/orpc/router";
+import { makeSessionExpiryInterceptor } from "./orpc-session-expiry";
 
 /**
  * Type-safe oRPC client (frontend/orpc-usage.md).
@@ -17,6 +18,7 @@ import type { ApiRouterClient } from "@iris/api/orpc/router";
  */
 const link = new RPCLink({
   url: () => `${window.location.origin}/api/rpc`,
+  clientInterceptors: [makeSessionExpiryInterceptor()],
 });
 
 export const orpcClient: ApiRouterClient = createORPCClient(link);
