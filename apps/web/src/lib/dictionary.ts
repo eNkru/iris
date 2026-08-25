@@ -75,6 +75,8 @@ const en = {
   "productList.summarySent": "Summary sent to your Telegram ({n} {items})",
   "productList.summarySent.one": "item",
   "productList.summarySent.other": "items",
+  "productList.openImage": "Open image for {name}",
+  "productList.imageDialog": "Product image: {name}",
 
   // Telegram help tooltip
   "tooltip.title": "How to connect Telegram",
@@ -287,6 +289,8 @@ const zh: Dictionary = {
   "productList.summarySent": "摘要已发送到你的 Telegram（{n} {items}）",
   "productList.summarySent.one": "个商品",
   "productList.summarySent.other": "个商品",
+  "productList.openImage": "查看 {name} 的图片",
+  "productList.imageDialog": "商品图片：{name}",
 
   // Telegram help tooltip
   "tooltip.title": "如何连接 Telegram",
