@@ -30,15 +30,30 @@ export interface SendMagicLinkParams {
   url: string;
 }
 
+/**
+ * Escape a string for safe insertion into HTML text content or attribute values.
+ * Escapes `& < > " '` so a URL with query delimiters or stray markup can't break
+ * out of the `<a href="...">`/text node in the magic-link email body.
+ */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export async function sendMagicLinkEmail(params: SendMagicLinkParams): Promise<void> {
   const env = getEnv();
+  const safeUrl = escapeHtml(params.url);
 
   await getSmtpTransporter().sendMail({
     from: env.SMTP_FROM,
     to: params.email,
     subject: "Sign in to Iris",
     text: `Sign in to Iris using this link: ${params.url}`,
-    html: `<p>Sign in to Iris using this link:</p><p><a href="${params.url}">${params.url}</a></p>`,
+    html: `<p>Sign in to Iris using this link:</p><p><a href="${safeUrl}">${safeUrl}</a></p>`,
   });
 
   logger.info("Magic link email sent", { email: params.email });
