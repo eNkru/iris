@@ -381,4 +381,49 @@ describe("ChannelsSection", () => {
     expect(payload).toEqual({ id: "ch-1", language: "zh" });
     expect(typeof options?.onError).toBe("function");
   });
+
+  it("disables only the row being updated (per-row pending), leaving other rows interactive (AC1/AC2)", async () => {
+    const user = userEvent.setup();
+    const updateMutate = vi.fn(); // does not fire onSettled -> simulates in-flight
+    mockUseUpdateChannel.mockReturnValue({
+      mutate: updateMutate,
+      isPending: false,
+    });
+    const secondChannel = {
+      ...sampleChannel,
+      id: "ch-2",
+      enabled: false,
+      config: { chatId: "987654321", language: "en" },
+    };
+    mockUseChannels.mockReturnValue({
+      data: { channels: [sampleChannel, secondChannel] },
+      isLoading: false,
+      isError: false,
+      error: null,
+    });
+
+    renderSection();
+
+    // Click "Disable" on the first row.
+    await user.click(screen.getByRole("button", { name: "Disable" }));
+
+    // First row's enable/disable + language controls are disabled.
+    const row1LanguageGroup = screen
+      .getAllByRole("group", { name: "Language" })[0];
+    const row1LangButtons = Array.from(
+      row1LanguageGroup.querySelectorAll<HTMLButtonElement>("button"),
+    );
+    expect(row1LangButtons.every((b) => b.disabled)).toBe(true);
+    // Row 1 was enabled, so its action button reads "Disable" and is disabled.
+    expect(screen.getByRole("button", { name: "Disable" })).toBeDisabled();
+
+    // Second row's controls remain enabled: its "Enable" button (second channel
+    // is disabled -> shows "Enable") and its language buttons.
+    const row2LanguageGroup = screen
+      .getAllByRole("group", { name: "Language" })[1];
+    const row2LangButtons = Array.from(
+      row2LanguageGroup.querySelectorAll<HTMLButtonElement>("button"));
+    expect(row2LangButtons.every((b) => !b.disabled)).toBe(true);
+    expect(screen.getByRole("button", { name: "Enable" })).toBeEnabled();
+  });
 });
