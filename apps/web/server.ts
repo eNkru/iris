@@ -143,12 +143,18 @@ app.get("/api/images/:id", async (c) => {
  * Vite-built static assets (JS/CSS chunks). Served without auth — they are
  * public, fingerprinted files with no sensitive content. Hashed filenames
  * are safe to cache as immutable.
+ *
+ * Set the cache-control header BEFORE serveStatic and return its result.
+ * Do not read `c.res.status` after calling serveStatic manually: when
+ * serveStatic is invoked as a function (not via the middleware pipeline's
+ * `next()`), its returned Response is NOT assigned to `c.res`, so `c.res`
+ * stays as Hono's unfinalized default and materializing it (via `c.res.status`
+ * / `c.header`) throws `RangeError: init["status"] must be in the range of
+ * 200 to 599`. Returning the value lets Hono's pipeline finalize `c.res`.
  */
 app.use("/assets/*", async (c, next) => {
-  await serveStatic({ root: distRoot })(c, next);
-  if (c.res.status !== 404) {
-    c.header("cache-control", "public, max-age=31536000, immutable");
-  }
+  c.header("cache-control", "public, max-age=31536000, immutable");
+  return serveStatic({ root: distRoot })(c, next);
 });
 
 /**
@@ -201,12 +207,14 @@ app.get("*", async (c, next) => {
  * SPA fallback: serve `index.html` for all remaining GET routes. React Router
  * handles client-side routing from there. The shell must revalidate on every
  * load so new deploys ship.
+ *
+ * Set `cache-control` before serveStatic and return its result (see the
+ * `/assets/*` handler above for why reading `c.res.status` after a manual
+ * serveStatic call is unsafe).
  */
 app.get("*", async (c, next) => {
-  await serveStatic({ root: distRoot, path: "index.html" })(c, next);
-  if (c.res.status !== 404) {
-    c.header("cache-control", "no-cache");
-  }
+  c.header("cache-control", "no-cache");
+  return serveStatic({ root: distRoot, path: "index.html" })(c, next);
 });
 
 /**

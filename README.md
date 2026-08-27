@@ -109,4 +109,4 @@ Special thanks to [LINUX DO](https://linux.do).
 
 ## License
 
-[GPL-3.0](LICENSE)
+[MIT](LICENSE)
