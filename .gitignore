@@ -38,6 +38,12 @@ pnpm-debug.log*
 .vscode/
 *.swp
 
+# Docker image archives (built locally, never commit — can be many GB)
+*.tar.gz
+
+# Pi agent session metadata
+.pi/
+
 # Python (camoufox sidecar)
 __pycache__/
 *.py[cod]
