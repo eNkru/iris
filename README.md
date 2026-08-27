@@ -98,6 +98,8 @@ Copy `.env.example` to `.env` and adjust. The important ones:
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | SMTP server for magic-link login emails |
 | `ARGUS_BASE_URL` | URL of the argus service, which owns page fetching **and** price extraction (JSON-LD first, optional LLM fallback; default `http://localhost:8000`) |
 | `ARGUS_API_TOKEN` | Bearer token for argus `/v1/*` routes; must match one of argus's `ARGUS_API_TOKENS` |
+
+The full Argus `/v1/*` OpenAPI contract is mirrored at [`docs/argus-api-spec.md`](docs/argus-api-spec.md) (reference copy; the canonical source lives in the argus repo).
 | `TELEGRAM_BOT_TOKEN` | Telegram bot for the alert channel |
 | `SCHEDULER_TICK_MS` | How often the scheduler looks for due products (default 30 s) |
 
