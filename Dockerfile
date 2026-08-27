@@ -5,8 +5,13 @@
 #
 # Multi-stage build:
 #   - builder: installs build toolchain (build-essential/python3 for
-#     better-sqlite3's node-gyp) and builds the SPA + esbuild server bundle.
-#   - runner: slim runtime with no compilers; runs as the non-root `node` user.
+#     better-sqlite3's node-gyp) and builds the SPA, the esbuild server
+#     bundle, and the standalone migrate.cjs.
+#   - runner: slim runtime carrying ONLY the SPA, the two bundled CJS
+#     bundles, the drizzle migration .sql files, and the better-sqlite3
+#     native addon (+ its tiny `bindings`/`file-uri-to-path` loaders). No
+#     pnpm, drizzle-kit, esbuild, tsx, typescript, or dev deps. Runs as the
+#     non-root `node` user.
 
 # -----------------------------------------------------------------------------
 # Stage 1: builder
@@ -64,8 +69,14 @@ RUN pnpm --filter @iris/web build \
     && rm -rf /root/.cache/pnpm \
     && rm -rf /app/data
 
+# Bundle the standalone migrator (packages/database/src/migrate.ts) to a CJS
+# file. The runner needs only better-sqlite3 (externalized) + Node builtins,
+# so this avoids shipping drizzle-kit/esbuild/tsx just to run migrations.
+# esbuild is a devDep of @iris/database (see db:migrate:build script).
+RUN pnpm --filter @iris/database db:migrate:build
+
 # -----------------------------------------------------------------------------
-# Stage 2: runner (no compilers, non-root)
+# Stage 2: runner (no compilers, non-root, minimal)
 # -----------------------------------------------------------------------------
 FROM node:22-slim AS runner
 
@@ -79,23 +90,30 @@ RUN apt-get update \
         wget \
     && rm -rf /var/lib/apt/lists/*
 
-# pnpm is needed at runtime for `pnpm db:migrate` in the entrypoint. Copy the
-# corepack-installed pnpm from the builder so the runner doesn't download it
-# at boot (offline-friendly, deterministic).
-COPY --from=builder /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/corepack
-COPY --from=builder /usr/local/bin/corepack /usr/local/bin/corepack
-RUN corepack enable
-
 WORKDIR /app
 
-# Copy the built application + its node_modules (including the better-sqlite3
-# native build and pnpm's virtual-store symlinks) from the builder. Copying
-# the whole /app preserves the pnpm symlink layout Vite/esbuild rely on.
-COPY --from=builder /app /app
+# --- The runner ships ONLY these artifacts (see the size budget below). ---
+# Copy the SPA and the bundled server + migrator. Both CJS bundles were built
+# with `--external:better-sqlite3`, so the sole npm package either needs at
+# runtime is better-sqlite3 (native addon) + its tiny `bindings` loader.
+COPY --from=builder /app/apps/web/dist ./apps/web/dist
+COPY --from=builder /app/apps/web/dist-server/server.cjs ./apps/web/dist-server/server.cjs
+COPY --from=builder /app/packages/database/dist/migrate.cjs ./packages/database/dist/migrate.cjs
+COPY --from=builder /app/packages/database/drizzle/migrations ./packages/database/drizzle/migrations
+
+# better-sqlite3 native addon + its JS wrapper, plus `bindings` and
+# `file-uri-to-path` (the `bindings` loader resolves `build/Release/*.node`
+# relative to the better-sqlite3 package dir). Preserve the real package
+# dirs (resolved through the pnpm virtual store) under /app/node_modules so
+# Node's require("better-sqlite3") / require("bindings") resolve cleanly.
+COPY --from=builder /app/node_modules/.pnpm/better-sqlite3@*/node_modules/better-sqlite3 ./node_modules/better-sqlite3
+COPY --from=builder /app/node_modules/.pnpm/bindings@*/node_modules/bindings ./node_modules/bindings
+COPY --from=builder /app/node_modules/.pnpm/file-uri-to-path@*/node_modules/file-uri-to-path ./node_modules/file-uri-to-path
 
 # The SQLite database lives under /app/data; ensure the non-root `node` user
-# (uid 1000, shipped by the node base image) can write it.
-RUN mkdir -p /app/data && chown -R node:node /app
+# (uid 1000, shipped by the node base image) can write it. Only /app/data
+# needs the chown — not the whole tree (the app files are read-only).
+RUN mkdir -p /app/data && chown -R node:node /app/data
 
 COPY docker-entrypoint.sh /usr/local/bin/iris-app-start
 RUN chmod +x /usr/local/bin/iris-app-start
