@@ -4,6 +4,7 @@ import { useEffect, useId, useState, type FormEvent } from "react";
 import type { ProductOutput } from "../hooks/use-products";
 import { useUpdateProduct } from "../hooks/use-products";
 import { useI18n } from "../lib/i18n";
+import { hasValidationIssue } from "../lib/orpc-validation";
 import { Button, ButtonSecondary, ErrorBox, Input, Label, Spinner } from "./ui";
 
 /**
@@ -92,8 +93,15 @@ export function ProductEditForm({ product }: { product: ProductOutput }) {
         active: product.active,
       });
       setSavedAt(Date.now());
-    } catch {
-      setError(t("editForm.saveError"));
+    } catch (err) {
+      // Point at the offending field when the server rejected the input.
+      if (hasValidationIssue(err, "pollIntervalMinutes")) {
+        setError(t("validation.pollInterval"));
+      } else if (hasValidationIssue(err, "alertRules")) {
+        setError(t("validation.alertRules"));
+      } else {
+        setError(t("editForm.saveError"));
+      }
     }
   };
 

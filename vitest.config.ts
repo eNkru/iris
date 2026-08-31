@@ -26,6 +26,9 @@ export default defineConfig({
         "apps/web/node_modules/@tanstack/react-query",
       ),
       "react-router": resolve(__dirname, "apps/web/node_modules/react-router"),
+      // Same pattern: @orpc/client is a dependency of apps/web (the oRPC
+      // client + the client-side ORPCError used by orpc-validation.ts).
+      "@orpc/client": resolve(__dirname, "apps/web/node_modules/@orpc/client"),
       // Workspace aliases must live at the Vite level so unit tests can import
       // `@iris/utils` / `@iris/database`. `test.resolve.alias` is not applied to those.
       "@iris/prices/pipeline": resolve(__dirname, "packages/prices/src/pipeline/index.ts"),

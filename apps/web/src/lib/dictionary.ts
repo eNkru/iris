@@ -86,6 +86,13 @@ const en = {
   "productList.summarySendError": "Failed to send the summary.",
   "productList.summaryNoChannel": "No enabled Telegram channel — add and enable one in Settings → Alert channels.",
   "channels.updateError": "Failed to update the channel.",
+
+  // Field-level validation messages (mapped from oRPC data.issues paths)
+  "validation.url": "Enter a valid http(s) URL.",
+  "validation.pollInterval": "Poll interval must be between 1 and 10080 minutes.",
+  "validation.alertRules": "Alert rule thresholds are invalid.",
+
+  // Telegram help tooltip
   "tooltip.title": "How to connect Telegram",
   "tooltip.step1": "Create a bot: message @BotFather and send /newbot, then copy the bot token.",
   "tooltip.step2": "Configure the token: set it in Settings → Global settings (admin) or the TELEGRAM_BOT_TOKEN env var.",
@@ -312,6 +319,11 @@ const zh: Dictionary = {
   "productList.summarySendError": "发送摘要失败。",
   "productList.summaryNoChannel": "没有启用中的 Telegram 频道 —— 请在设置 → 提醒频道中添加并启用。",
   "channels.updateError": "更新频道失败。",
+
+  // 字段级校验提示（由 oRPC data.issues 路径映射）
+  "validation.url": "请输入有效的 http(s) 链接。",
+  "validation.pollInterval": "轮询间隔需在 1 到 10080 分钟之间。",
+  "validation.alertRules": "提醒规则阈值无效。",
 
   // Telegram help tooltip
   "tooltip.title": "如何连接 Telegram",

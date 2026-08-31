@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useCreateProduct } from "../hooks/use-products";
 import { useI18n } from "../lib/i18n";
+import { hasValidationIssue } from "../lib/orpc-validation";
 import { Button, ErrorBox, Input, Label, Spinner } from "./ui";
 
 /**
@@ -39,8 +40,13 @@ export function AddProductForm() {
       } else if (result.check.status === "not_found") {
         setError(t("addProduct.notFound"));
       }
-    } catch {
-      setError(t("addProduct.error"));
+    } catch (err) {
+      // Point at the offending field when the server rejected the input.
+      setError(
+        hasValidationIssue(err, "url")
+          ? t("validation.url")
+          : t("addProduct.error"),
+      );
     }
   };
 

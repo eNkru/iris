@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useI18n } from "../lib/i18n";
+import { hasValidationIssue } from "../lib/orpc-validation";
 import {
   useChannels,
   useCreateChannel,
@@ -64,8 +65,13 @@ export function ChannelsSection() {
       });
       setChatId("");
       setLanguage("en");
-    } catch {
-      setErrorMessage(t("channels.addError"));
+    } catch (err) {
+      // Point at the chat-id field when the server rejected the input.
+      setErrorMessage(
+        hasValidationIssue(err, "chatId")
+          ? t("channels.chatIdInvalid")
+          : t("channels.addError"),
+      );
     }
   };
 

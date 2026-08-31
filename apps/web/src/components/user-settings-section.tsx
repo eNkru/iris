@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useUpdateUserSettings, useUserSettings } from "../hooks/use-settings";
 import { useI18n } from "../lib/i18n";
+import { hasValidationIssue } from "../lib/orpc-validation";
 import { Button, ErrorBox, Input, Label, Spinner } from "./ui";
 
 /**
@@ -50,8 +51,13 @@ export function UserSettingsSection() {
     try {
       await updateUserSettings.mutateAsync({ pollIntervalDefaultMinutes: parsed });
       setSavedAt(Date.now());
-    } catch {
-      setErrorMessage(t("userSettings.saveError"));
+    } catch (err) {
+      // Point at the interval field when the server rejected the input.
+      setErrorMessage(
+        hasValidationIssue(err, "pollIntervalDefaultMinutes")
+          ? t("validation.pollInterval")
+          : t("userSettings.saveError"),
+      );
     }
   };
 
