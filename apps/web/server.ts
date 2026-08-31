@@ -16,6 +16,34 @@ import { startScheduler, stopScheduler } from "@iris/prices";
 import { getEnv, logger } from "@iris/utils";
 
 /**
+ * Process-level failure handlers, registered before any async work starts.
+ * This single Node process hosts the HTTP server, the oRPC layer and the
+ * price-check scheduler; since Node ≥15 an unhandled rejection crashes the
+ * process by default, taking the whole app down. Log both failure classes
+ * with full stack traces so post-mortems are possible:
+ * - `unhandledRejection`: a promise nobody awaited (e.g. background check
+ *   work that outlived its deadline and later failed). The process can keep
+ *   serving; log and continue.
+ * - `uncaughtException`: a synchronous error escaped every handler. State may
+ *   be inconsistent, so log and exit non-zero — the orchestrator restarts the
+ *   container. The logger writes synchronously, so the record survives exit.
+ */
+process.on("unhandledRejection", (reason) => {
+  logger.error("Unhandled promise rejection", {
+    error: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+  });
+});
+
+process.on("uncaughtException", (error) => {
+  logger.error("Uncaught exception; exiting", {
+    error: error.message,
+    stack: error.stack,
+  });
+  process.exit(1);
+});
+
+/**
  * Resolve the server directory. In CJS (esbuild production bundle),
  * `__dirname` is available natively. In ESM (tsx dev), `import.meta.url`
  * is used instead. esbuild's CJS output leaves `import.meta.url` as

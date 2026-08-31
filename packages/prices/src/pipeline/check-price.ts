@@ -59,14 +59,41 @@ export function checkPrice(productId: string): Promise<CheckPriceResult> {
 
 async function runCheckPrice(productId: string): Promise<CheckPriceResult> {
   let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+  let deadlineFired = false;
   const deadline = new Promise<CheckPriceResult>((resolve) => {
-    deadlineTimer = setTimeout(
-      () => resolve({ status: "failed", reason: "check_deadline_exceeded" }),
-      CHECK_DEADLINE_MS,
-    );
+    deadlineTimer = setTimeout(() => {
+      deadlineFired = true;
+      resolve({ status: "failed", reason: "check_deadline_exceeded" });
+    }, CHECK_DEADLINE_MS);
   });
 
   const work = runCheckPriceWork(productId);
+  // When the deadline wins the race, `work` keeps running in the background
+  // (v1: no abort). A rejection after that point would have no receiver and
+  // surface as an unhandled rejection — which crashes the process by default
+  // on Node ≥15. Only late failures/completions (deadline already fired) are
+  // logged here; earlier ones propagate to the caller via the race below,
+  // which already logs them, so we avoid double-reporting.
+  void work.then(
+    (result) => {
+      if (deadlineFired) {
+        logger.warn("Abandoned price check completed late", {
+          productId,
+          status: result.status,
+        });
+      }
+    },
+    (error: unknown) => {
+      if (deadlineFired) {
+        logger.error("Abandoned price check failed late", {
+          productId,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        });
+      }
+    },
+  );
+
   try {
     return await Promise.race([work, deadline]);
   } finally {
