@@ -658,3 +658,36 @@ Implemented all 10 low-priority tasks from .trellis/tasks/08-25-low-*/ and bundl
 ### Next Steps
 
 - None - task complete
+
+
+## Session 18: fix(web): break infinite render loop in ProductDetailPage
+
+**Date**: 2026-08-31
+**Task**: fix(web): break infinite render loop in ProductDetailPage
+**Branch**: `fix/product-detail-checknow-reset-loop`
+
+### Summary
+
+Diagnosed the 'Something went wrong' crash on the product details page (React error #185, infinite render loop) using the user's browser console stack trace. Root cause: commit 8941ff0 added useEffect(() => checkNow.reset(), [id, checkNow]) — MutationObserver.reset() always rebuilds a fresh result object and notifies subscribers, so the checkNow dep changed every render → effect → reset() → notify → … → React #185, caught by ErrorBoundary. Fix: depend on [id] only (checkNow.reset is a stable React Query method). Added a regression test using the real useMutation that asserts the fixed [id] deps stabilize (1 effect run) and the buggy [id, checkNow] deps loop (>10). jsdom does not throw #185 itself but the loop is fully observable via render/effect counts. Verified typecheck, lint, and full 173-test suite pass. Branch fix/product-detail-checknow-reset-loop pushed to origin.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d04086d` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
