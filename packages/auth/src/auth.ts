@@ -51,7 +51,9 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async (userRecord) => {
-          await bootstrapFirstUserAsAdmin(userRecord.id);
+          // bootstrapFirstUserAsAdmin is synchronous (better-sqlite3
+          // transactions can't host async callbacks); no `await` needed here.
+          bootstrapFirstUserAsAdmin(userRecord.id);
         },
       },
     },

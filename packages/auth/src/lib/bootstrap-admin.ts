@@ -18,15 +18,20 @@ import { logger } from "@iris/utils";
  * one admin and avoids the previous race where both saw count=2 and neither
  * was promoted (leaving zero admins).
  */
-export async function bootstrapFirstUserAsAdmin(userId: string): Promise<void> {
-  await db.transaction(async (tx) => {
-    const userCount = await countUsersInTx(tx);
+export function bootstrapFirstUserAsAdmin(userId: string): void {
+  // drizzle's better-sqlite3 driver is synchronous: db.transaction(fn)
+  // delegates to better-sqlite3's native transaction(), which throws
+  // "Transaction function cannot return a promise" if fn is async / returns a
+  // Promise. So the callback must stay synchronous — use the sync execution
+  // terminals (.all()/.run()) and never `await` inside it.
+  db.transaction((tx) => {
+    const userCount = countUsersInTx(tx);
 
     if (userCount !== 1) {
       return;
     }
 
-    await tx.update(user).set({ role: "admin" }).where(eq(user.id, userId));
+    tx.update(user).set({ role: "admin" }).where(eq(user.id, userId)).run();
 
     logger.info("First user promoted to admin", { userId });
   });

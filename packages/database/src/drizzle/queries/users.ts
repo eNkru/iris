@@ -17,8 +17,11 @@ export async function countUsers(): Promise<number> {
  * count is read under the same write lock that grants admin, making the
  * check-then-grant atomic against concurrent first sign-ups.
  */
-export async function countUsersInTx(tx: typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]): Promise<number> {
-  const [row] = await tx.select({ count: count() }).from(user);
+export function countUsersInTx(tx: typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0]): number {
+  // Synchronous: this runs inside a better-sqlite3 transaction callback, which
+  // must not return a Promise (see bootstrap-admin.ts). Use the sync .all()
+  // terminal rather than awaiting the query.
+  const [row] = tx.select({ count: count() }).from(user).all();
   return row?.count ?? 0;
 }
 

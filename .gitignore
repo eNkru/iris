@@ -39,6 +39,7 @@ pnpm-debug.log*
 *.swp
 
 # Docker image archives (built locally, never commit — can be many GB)
+*.tar
 *.tar.gz
 
 # Pi agent session metadata

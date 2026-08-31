@@ -1,0 +1,67 @@
+# Iris + Argus — single compose file (self-contained).
+#
+# Place this file alongside a `.env` (iris secrets) and an `argus.env`
+# (argus secrets) on the NAS, then:
+#   docker compose -f docker-compose.stack.yml up -d
+#
+# Networking: both services join compose's default network, so iris resolves
+# `argus` by service name and calls `http://argus:8000` directly. No
+# `host.docker.internal`, no shared user-defined network wiring, no LAN-IP
+# gymnastics.
+#
+# argus's port is NOT published to the host (it's only called by iris on the
+# compose network). Only iris's web UI port is published.
+#
+# Prereq images (load on the NAS first, e.g. via `docker load -i ...tar`):
+#   iris:2.0.0    — your built/imported iris image
+#   argus:latest  — build on your dev box then import:
+#                    docker build -t argus:latest ../argus
+#                    docker save argus:latest | gzip > argus.tar
+#                    # transfer argus.tar to the NAS, then:
+#                    docker load -i argus.tar
+#
+# Env values are double-quoted so secret values containing ':' or '#' do not
+# break YAML interpolation.
+services:
+  argus:
+    image: argus:latest
+    restart: unless-stopped
+    # Bind-mount argus's env file (pydantic-settings reads /app/.env at boot).
+    # Populate from argus's own .env:   cp ../argus/.env ./argus.env
+    volumes:
+      - ./argus.env:/app/.env:ro
+    # NOTE: no `ports:` — argus is only reached by iris on the compose network.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  iris:
+    image: iris:2.0.0
+    container_name: iris
+    restart: unless-stopped
+    # All iris env comes from .env (compose auto-injects every KEY=VALUE).
+    # Make sure .env has: NODE_ENV, APP_URL, ARGUS_BASE_URL=http://argus:8000,
+    # ARGUS_API_TOKEN, BETTER_AUTH_SECRET, SMTP_*, TELEGRAM_BOT_TOKEN, etc.
+    env_file:
+      - .env
+    depends_on:
+      argus:
+        condition: service_healthy
+    ports:
+      # host 7777 → container 3000 (the iris web UI). Change the left side
+      # if 7777 is taken on the NAS.
+      - "7777:3000"
+    volumes:
+      - iris-data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/rpc/health/check >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  iris-data:
