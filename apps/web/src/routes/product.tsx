@@ -27,10 +27,19 @@ export function ProductDetailPage() {
 
   // Reset stale mutation state when navigating between products so the
   // previous product's check-now result/banner doesn't render on the new one.
+  //
+  // Depend on `id` ONLY. Including the `useMutation` result object
+  // (`checkNow`) here re-runs the effect on every notification: `reset()`
+  // itself notifies subscribers and React Query delivers a fresh result object,
+  // so the dep changes every render → reset() → notify → … → infinite render
+  // loop → React error #185 ("Maximum update depth exceeded"), caught by the
+  // top-level ErrorBoundary as "Something went wrong". `checkNow.reset` is a
+  // stable React Query method, so calling it on an `id` change is sufficient.
   useEffect(() => {
     checkNow.reset();
     setCheckError(null);
-  }, [id, checkNow]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   if (isLoading) {
     return (
