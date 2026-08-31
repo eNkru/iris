@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useCreateProduct } from "../hooks/use-products";
 import { useI18n } from "../lib/i18n";
 import { hasValidationIssue } from "../lib/orpc-validation";
-import { Button, ErrorBox, Input, Label, Spinner } from "./ui";
+import { Button, ErrorBox, Input, Label, Spinner, formatPrice } from "./ui";
 
 /**
  * Add-a-product form (R4): submits a URL, runs the synchronous first check on
@@ -69,18 +69,20 @@ export function AddProductForm() {
       {createProduct.data?.check.status === "changed" ? (
         <p className="text-sm text-emerald-700 dark:text-emerald-400">
           {t("addProduct.addedChanged", {
-            price: `${
-              createProduct.data.check.currency
-                ? `${createProduct.data.check.currency} `
-                : ""
-            }${createProduct.data.check.newPrice.toFixed(2)}`,
+            price: formatPrice(
+              createProduct.data.check.newPrice,
+              createProduct.data.check.currency,
+            ),
           })}
         </p>
       ) : null}
       {createProduct.data?.check.status === "unchanged" ? (
         <p className="text-sm text-stone-600 dark:text-stone-300">
           {t("addProduct.addedUnchanged", {
-            price: createProduct.data.check.price.toFixed(2),
+            price: formatPrice(
+              createProduct.data.check.price,
+              createProduct.data.product.currency,
+            ),
           })}
         </p>
       ) : null}

@@ -71,6 +71,9 @@ const en = {
   "productList.deleting": "Deleting…",
   "productList.cancel": "Cancel",
   "productList.refresh": "Refresh",
+  "productList.refreshing": "Refreshing…",
+  "productList.updating": "Updating…",
+  "productList.closeLightbox": "Close image view",
   "productList.deleteError": "Failed to delete product.",
   "productList.sendSummary": "Send summary to Telegram",
   "productList.sending": "Sending…",
@@ -178,6 +181,7 @@ const en = {
   "chart.emptyHint": "Readings are only recorded when the price changes.",
   "chart.range": "Range",
   "chart.rangeAria": "Chart range",
+  "chart.ariaLabel": "Daily price trend chart",
   "chart.7d": "7 days",
   "chart.30d": "30 days",
   "chart.all": "All",
@@ -234,6 +238,7 @@ const en = {
   "errorBoundary.title": "Something went wrong",
   "errorBoundary.description": "An unexpected error occurred while rendering this page. You can reload to try again.",
   "errorBoundary.reload": "Reload page",
+  "errorBoundary.backProducts": "Back to products (no reload)",
 
   // Not-found route
   "notFound.title": "Page not found",
@@ -304,6 +309,9 @@ const zh: Dictionary = {
   "productList.deleting": "删除中…",
   "productList.cancel": "取消",
   "productList.refresh": "刷新",
+  "productList.refreshing": "刷新中…",
+  "productList.updating": "更新中…",
+  "productList.closeLightbox": "关闭图片查看",
   "productList.deleteError": "删除商品失败。",
   "productList.sendSummary": "发送摘要到 Telegram",
   "productList.sending": "发送中…",
@@ -411,6 +419,7 @@ const zh: Dictionary = {
   "chart.emptyHint": "只有在价格变化时才会记录读数。",
   "chart.range": "范围",
   "chart.rangeAria": "图表范围",
+  "chart.ariaLabel": "每日价格走势图",
   "chart.7d": "7 天",
   "chart.30d": "30 天",
   "chart.all": "全部",
@@ -467,6 +476,7 @@ const zh: Dictionary = {
   "errorBoundary.title": "出错了",
   "errorBoundary.description": "渲染此页面时发生了意外错误。你可以重新加载以重试。",
   "errorBoundary.reload": "重新加载页面",
+  "errorBoundary.backProducts": "返回商品列表（不刷新）",
 
   // Not-found route
   "notFound.title": "页面不存在",

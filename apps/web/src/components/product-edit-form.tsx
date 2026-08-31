@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useState, type FormEvent } from "react";
+import { useId, useState, type FormEvent } from "react";
+import { useTransientFlag } from "../hooks/use-transient-flag";
 import type { ProductOutput } from "../hooks/use-products";
 import { useUpdateProduct } from "../hooks/use-products";
 import { useI18n } from "../lib/i18n";
@@ -34,16 +35,7 @@ export function ProductEditForm({ product }: { product: ProductOutput }) {
   const [riseAbs, setRiseAbs] = useState(product.alertRules?.riseAbs?.toString() ?? "");
   const [fallAbs, setFallAbs] = useState(product.alertRules?.fallAbs?.toString() ?? "");
   const [error, setError] = useState<string | null>(null);
-  const [savedAt, setSavedAt] = useState<number | null>(null);
-
-  // Transient "Saved." feedback (R8): clears after ~3s.
-  useEffect(() => {
-    if (savedAt === null) {
-      return;
-    }
-    const timer = setTimeout(() => setSavedAt(null), 3000);
-    return () => clearTimeout(timer);
-  }, [savedAt]);
+  const [savedFlash, triggerSavedFlash] = useTransientFlag();
 
   const silentConfig =
     !anyChange &&
@@ -65,7 +57,6 @@ export function ProductEditForm({ product }: { product: ProductOutput }) {
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
-    setSavedAt(null);
     if (thresholdInvalid) {
       setError(thresholdError);
       return;
@@ -92,7 +83,7 @@ export function ProductEditForm({ product }: { product: ProductOutput }) {
         alertRules,
         active: product.active,
       });
-      setSavedAt(Date.now());
+      triggerSavedFlash();
     } catch (err) {
       // Point at the offending field when the server rejected the input.
       if (hasValidationIssue(err, "pollIntervalMinutes")) {
@@ -111,7 +102,9 @@ export function ProductEditForm({ product }: { product: ProductOutput }) {
     value: string,
     setValue: (v: string) => void,
     invalid: boolean,
-  ) => (
+  ) => {
+    const errorId = `${id}-error`;
+    return (
     <div>
       <Label htmlFor={id}>{label}</Label>
       <Input
@@ -121,13 +114,21 @@ export function ProductEditForm({ product }: { product: ProductOutput }) {
         step="any"
         value={value}
         aria-invalid={invalid}
+        aria-describedby={invalid ? errorId : undefined}
         onChange={(e) => {
-          setSavedAt(null);
           setValue(e.target.value);
         }}
       />
+      {/* Programmatically associated with the input via aria-describedby
+          so screen readers announce why the field is invalid. */}
+      {invalid ? (
+        <p id={errorId} className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+          {t("editForm.thresholdInvalid")}
+        </p>
+      ) : null}
     </div>
-  );
+    );
+  };
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
@@ -141,7 +142,6 @@ export function ProductEditForm({ product }: { product: ProductOutput }) {
           placeholder={t("editForm.intervalPlaceholder")}
           value={pollIntervalMinutes}
           onChange={(e) => {
-            setSavedAt(null);
             setPollIntervalMinutes(e.target.value);
           }}
         />
@@ -157,7 +157,6 @@ export function ProductEditForm({ product }: { product: ProductOutput }) {
             type="checkbox"
             checked={anyChange}
             onChange={(e) => {
-              setSavedAt(null);
               setAnyChange(e.target.checked);
             }}
             className="h-4 w-4 rounded border-stone-300 dark:border-stone-700"
@@ -184,10 +183,9 @@ export function ProductEditForm({ product }: { product: ProductOutput }) {
       </div>
 
       {error ? <ErrorBox message={error} /> : null}
-      {thresholdError && !error ? (
-        <p className="text-sm text-amber-700 dark:text-amber-400">{thresholdError}</p>
-      ) : null}
-      {savedAt !== null ? (
+      {/* Field-level threshold errors render inline next to each input
+          (aria-describedby) — no duplicate aggregate line here. */}
+      {savedFlash ? (
         <p className="text-sm text-emerald-700 dark:text-emerald-400">
           {t("editForm.saved")}
         </p>

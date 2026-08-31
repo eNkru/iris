@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
+import { ORPCError } from "@orpc/client";
 import { useCheckNow, useProduct } from "../hooks/use-products";
 import { AppShell } from "../components/app-shell";
 import { AuthGate } from "../components/auth-gate";
@@ -52,12 +53,20 @@ export function ProductDetailPage() {
   }
 
   if (isError || !data) {
+    // A NOT_FOUND from the API means the id is unknown (deleted elsewhere,
+    // stale link, or a hand-edited URL) — show the friendly not-found page
+    // copy instead of the generic load-error box with a raw message.
+    const notFound = error instanceof ORPCError && error.code === "NOT_FOUND";
     return (
       <AuthGate>
         <AppShell>
           <ErrorBox
             message={
-              error instanceof Error ? error.message : t("detail.loadError")
+              notFound
+                ? t("notFound.title")
+                : error instanceof Error
+                  ? error.message
+                  : t("detail.loadError")
             }
           />
           <div className="mt-4">

@@ -31,15 +31,16 @@ import {
  */
 export function ProductList() {
   const { t, lang } = useI18n();
-  const { data, isLoading, isError, error, refetch } = useProducts();
+  const { data, isLoading, isError, error, refetch, isFetching } = useProducts();
   const checkNow = useCheckNow();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
   const sendSummary = useSendSummary();
-  const [pendingAction, setPendingAction] = useState<{
-    id: string;
-    kind: "check" | "toggle";
-  } | null>(null);
+  // Per-action pending ids: two rows can run operations concurrently without
+  // stealing each other's spinner (a single {id, kind} slot dropped the first
+  // row's state when a second row's action started).
+  const [pendingCheckId, setPendingCheckId] = useState<string | null>(null);
+  const [pendingToggleId, setPendingToggleId] = useState<string | null>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
     null,
   );
@@ -57,14 +58,14 @@ export function ProductList() {
   const products = data?.products ?? [];
 
   const handleCheckNow = (id: string) => {
-    setPendingAction({ id, kind: "check" });
+    setPendingCheckId(id);
     setActionError(null);
     checkNow.mutate(
       { id },
       {
         // Localized fallback — raw oRPC messages are English-only.
         onError: () => setActionError(t("productList.checkError")),
-        onSettled: () => setPendingAction(null),
+        onSettled: () => setPendingCheckId((current) => (current === id ? null : current)),
       },
     );
   };
@@ -74,13 +75,13 @@ export function ProductList() {
     if (!product) {
       return;
     }
-    setPendingAction({ id, kind: "toggle" });
+    setPendingToggleId(id);
     setActionError(null);
     updateProduct.mutate(
       { id, active: !product.active },
       {
         onError: () => setActionError(t("productList.updateError")),
-        onSettled: () => setPendingAction(null),
+        onSettled: () => setPendingToggleId((current) => (current === id ? null : current)),
       },
     );
   };
@@ -91,6 +92,14 @@ export function ProductList() {
     setActionError(null);
     try {
       await deleteProduct.mutateAsync(id);
+      // Move focus to the next row (or the list header) so keyboard users do
+      // not fall back to <body> when the deleted row unmounts.
+      const index = products.findIndex((p) => p.id === id);
+      const neighbor = products[index + 1] ?? products[index - 1];
+      const focusTargetId = neighbor ? `product-row-${neighbor.id}` : "product-list";
+      requestAnimationFrame(() => {
+        document.getElementById(focusTargetId)?.focus();
+      });
     } catch {
       setActionError(t("productList.deleteError"));
     } finally {
@@ -167,8 +176,15 @@ export function ProductList() {
         </ButtonSecondary>
       </div>
       {products.length > 0 ? (
-        <ButtonSecondary onClick={() => refetch()}>
-          {t("productList.refresh")}
+        <ButtonSecondary
+          onClick={() => refetch()}
+          disabled={isFetching}
+        >
+          {isFetching ? (
+            <Spinner label={t("productList.refreshing")} />
+          ) : (
+            t("productList.refresh")
+          )}
         </ButtonSecondary>
       ) : null}
     </div>
@@ -192,18 +208,18 @@ export function ProductList() {
   }
 
   return (
-    <div className="space-y-3">
+    <div id="product-list" className="space-y-3">
       {actionError ? <ErrorBox message={actionError} /> : null}
       {products.map((product) => {
-        const checkPending =
-          pendingAction?.id === product.id && pendingAction.kind === "check";
-        const togglePending =
-          pendingAction?.id === product.id && pendingAction.kind === "toggle";
+        const checkPending = pendingCheckId === product.id;
+        const togglePending = pendingToggleId === product.id;
         const isConfirming = confirmingDeleteId === product.id;
         return (
           <Card
             key={product.id}
-            className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5"
+            id={`product-row-${product.id}`}
+            tabIndex={-1}
+            className="flex flex-col gap-4 p-4 outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] sm:flex-row sm:items-center sm:justify-between sm:p-5"
           >
             <div className="flex min-w-0 gap-4">
               {product.imagePath ? (
@@ -298,7 +314,7 @@ export function ProductList() {
                 disabled={checkPending || togglePending}
               >
                 {togglePending ? (
-                  <Spinner label="…" />
+                  <Spinner label={t("productList.updating")} />
                 ) : product.active ? (
                   t("productList.pause")
                 ) : (
@@ -376,6 +392,7 @@ const Lightbox = forwardRef<HTMLDivElement, LightboxProps>(function Lightbox(
   { imageId, alt, label, onClose },
   ref,
 ) {
+  const { t } = useI18n();
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
 
   // Move focus into the dialog on open; lock background scroll.
@@ -419,7 +436,7 @@ const Lightbox = forwardRef<HTMLDivElement, LightboxProps>(function Lightbox(
         type="button"
         onClick={onClose}
         className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-2xl text-white transition-colors hover:bg-white/20"
-        aria-label="Close"
+        aria-label={t("productList.closeLightbox")}
       >
         ✕
       </button>

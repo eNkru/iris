@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useI18n } from "../lib/i18n";
+import { useI18n, LANGUAGE_OPTIONS } from "../lib/i18n";
 import { hasValidationIssue } from "../lib/orpc-validation";
 import {
   useChannels,
@@ -25,11 +25,7 @@ import {
  * user; chat id + notification message language are the configurable fields.
  */
 
-/** Notification language options for the add-form / per-row selector. */
-const LANGUAGE_OPTIONS = [
-  { value: "en", label: "EN" },
-  { value: "zh", label: "中文" },
-] as const;
+/** Notification language options come from lib/i18n.tsx (shared). */
 
 export function ChannelsSection() {
   const { t } = useI18n();

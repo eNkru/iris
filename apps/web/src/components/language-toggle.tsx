@@ -1,16 +1,13 @@
 "use client";
 
-import { useI18n } from "../lib/i18n";
+import { useI18n, LANGUAGE_OPTIONS } from "../lib/i18n";
 import { SegmentedControl } from "./ui";
 
 /**
  * English / 中文 language switch for the top nav (dependency-free, mirrors the
- * theme toggle). Uses the shared SegmentedControl from ui.tsx.
+ * theme toggle). Uses the shared SegmentedControl from ui.tsx and the shared
+ * LANGUAGE_OPTIONS from lib/i18n.tsx.
  */
-const LANGUAGE_OPTIONS = [
-  { value: "en", label: "EN" },
-  { value: "zh", label: "中文" },
-] as const;
 
 export function LanguageToggle() {
   const { lang, setLang, mounted, t } = useI18n();

@@ -2,6 +2,7 @@
 
 import type {
   ButtonHTMLAttributes,
+  HTMLAttributes,
   InputHTMLAttributes,
   LabelHTMLAttributes,
   ReactNode,
@@ -83,13 +84,15 @@ export function Label({
 export function Card({
   children,
   className = "",
+  ...rest
 }: {
   children: ReactNode;
   className?: string;
-}) {
+} & Omit<HTMLAttributes<HTMLDivElement>, "className">) {
   return (
     <div
       className={`rounded-xl border border-stone-200/90 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900/80 ${className}`}
+      {...rest}
     >
       {children}
     </div>

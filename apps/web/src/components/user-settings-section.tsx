@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+import { useTransientFlag } from "../hooks/use-transient-flag";
+import { useOneShotSeed } from "../hooks/use-one-shot-seed";
 import { useUpdateUserSettings, useUserSettings } from "../hooks/use-settings";
 import { useI18n } from "../lib/i18n";
 import { hasValidationIssue } from "../lib/orpc-validation";
@@ -17,30 +19,17 @@ export function UserSettingsSection() {
 
   const [pollInterval, setPollInterval] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [hasLoaded, setHasLoaded] = useState(false);
-  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [savedFlash, triggerSavedFlash] = useTransientFlag();
 
-  // Transient "Saved." feedback (R8): clears after ~3s.
-  useEffect(() => {
-    if (savedAt === null) {
-      return;
-    }
-    const timer = setTimeout(() => setSavedAt(null), 3000);
-    return () => clearTimeout(timer);
-  }, [savedAt]);
-
-  // Seed the form once settings arrive from the server.
-  useEffect(() => {
-    if (data && !hasLoaded) {
-      setPollInterval(data.settings.pollIntervalDefaultMinutes?.toString() ?? "");
-      setHasLoaded(true);
-    }
-  }, [data, hasLoaded]);
+  // Seed the form once settings arrive from the server (never re-seeds on
+  // later refetches, so user edits survive background refreshes).
+  useOneShotSeed(data, (d) => {
+    setPollInterval(d.settings.pollIntervalDefaultMinutes?.toString() ?? "");
+  });
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setErrorMessage(null);
-    setSavedAt(null);
 
     const parsed = pollInterval === "" ? null : Number(pollInterval);
     if (parsed !== null && (!Number.isInteger(parsed) || parsed < 1)) {
@@ -50,7 +39,7 @@ export function UserSettingsSection() {
 
     try {
       await updateUserSettings.mutateAsync({ pollIntervalDefaultMinutes: parsed });
-      setSavedAt(Date.now());
+      triggerSavedFlash();
     } catch (err) {
       // Point at the interval field when the server rejected the input.
       setErrorMessage(
@@ -81,7 +70,6 @@ export function UserSettingsSection() {
               placeholder={t("userSettings.intervalPlaceholder")}
               value={pollInterval}
               onChange={(e) => {
-                setSavedAt(null);
                 setPollInterval(e.target.value);
               }}
               disabled={updateUserSettings.isPending}
@@ -91,7 +79,7 @@ export function UserSettingsSection() {
             </p>
           </div>
           {errorMessage ? <ErrorBox message={errorMessage} /> : null}
-          {savedAt !== null ? (
+          {savedFlash ? (
             <p className="text-sm text-emerald-700 dark:text-emerald-400">
               {t("userSettings.saved")}
             </p>

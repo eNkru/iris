@@ -72,6 +72,15 @@ function ErrorFallback({ error }: { error: Error }) {
         <Button onClick={() => window.location.reload()}>
           {t("errorBoundary.reload")}
         </Button>
+        {/* SPA navigation back to the list: the boundary resets on pathname
+            change, so a plain link recovers the session without a full
+            reload (which would drop in-memory state anyway). */}
+        <a
+          href="/"
+          className="text-sm font-medium text-stone-500 underline transition-colors hover:text-[var(--accent)] dark:text-stone-400 dark:hover:text-[var(--accent)]"
+        >
+          {t("errorBoundary.backProducts")}
+        </a>
       </Card>
     </main>
   );

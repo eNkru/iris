@@ -36,6 +36,10 @@ vi.mock("../../apps/web/src/hooks/use-channels", () => ({
 }));
 
 vi.mock("../../apps/web/src/lib/i18n", () => ({
+  LANGUAGE_OPTIONS: [
+    { value: "en", label: "EN" },
+    { value: "zh", label: "中文" },
+  ],
   useI18n: () => ({
     t: (key: string, vars?: Record<string, string | number>) => {
       const translations: Record<string, string> = {

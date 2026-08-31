@@ -41,6 +41,7 @@ vi.mock("../../apps/web/src/lib/i18n", () => ({
         "productList.active": "Active",
         "productList.paused": "Paused",
         "productList.noPrice": "No price recorded yet",
+        "productList.closeLightbox": "Close",
         "productList.checked": " checked ",
         "productList.checkNow": "Check now",
         "productList.checking": "Checking...",
