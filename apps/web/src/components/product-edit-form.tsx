@@ -137,7 +137,7 @@ export function ProductEditForm({ product }: { product: ProductOutput }) {
             setPollIntervalMinutes(e.target.value);
           }}
         />
-        <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
+        <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
           {t("editForm.intervalHint")}
         </p>
       </div>
@@ -165,7 +165,7 @@ export function ProductEditForm({ product }: { product: ProductOutput }) {
           {numberField(riseAbsId, t("editForm.riseAbs"), riseAbs, setRiseAbs, !isThresholdValid(riseAbs))}
           {numberField(fallAbsId, t("editForm.fallAbs"), fallAbs, setFallAbs, !isThresholdValid(fallAbs))}
         </div>
-        <p className="text-xs text-stone-400 dark:text-stone-500">
+        <p className="text-xs text-stone-500 dark:text-stone-400">
           {t("editForm.thresholdsHint")}
         </p>
         {silentConfig ? (

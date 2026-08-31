@@ -80,7 +80,7 @@ export function UserSettingsSection() {
               }}
               disabled={updateUserSettings.isPending}
             />
-            <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
+            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
               {t("userSettings.intervalHint")}
             </p>
           </div>

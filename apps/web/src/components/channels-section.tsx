@@ -171,7 +171,7 @@ export function ChannelsSection() {
             onChange={(e) => setChatId(e.target.value)}
             disabled={createChannel.isPending}
           />
-          <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
+          <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
             {t("channels.chatIdHint")}
             <code className="ml-1 rounded bg-stone-100 px-1 dark:bg-stone-800">123456789</code>.
           </p>

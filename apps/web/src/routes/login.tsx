@@ -143,7 +143,7 @@ export function LoginPage() {
         </Card>
 
         <div className="flex flex-col items-center gap-2 text-center">
-          <p className="text-xs font-medium uppercase tracking-wide text-stone-400 dark:text-stone-500">
+          <p className="text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-stone-400">
             {t("login.projectLinks")}
           </p>
           <ProjectLinks className="justify-center" />

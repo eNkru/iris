@@ -57,6 +57,16 @@ export function checkPrice(productId: string): Promise<CheckPriceResult> {
   return pending;
 }
 
+/**
+ * Number of price checks currently running (the single-flight map). The HTTP
+ * entrypoint polls this during graceful shutdown so a deploy waits for
+ * in-flight checks instead of cutting them mid-write when the force-exit
+ * deadline allows.
+ */
+export function activeCheckCount(): number {
+  return inflightChecks.size;
+}
+
 async function runCheckPrice(productId: string): Promise<CheckPriceResult> {
   let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
   let deadlineFired = false;

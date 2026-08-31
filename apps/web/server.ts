@@ -13,7 +13,7 @@ import { auth } from "@iris/auth";
 import { getProductImageForUser } from "@iris/database";
 import { router } from "@iris/api/orpc/router";
 import { getOrGenerateLogId } from "@iris/api/orpc/procedures";
-import { startScheduler, stopScheduler } from "@iris/prices";
+import { startScheduler, stopScheduler, activeCheckCount } from "@iris/prices";
 import { getEnv, logger, errorFields } from "@iris/utils";
 
 /**
@@ -295,11 +295,12 @@ const server = serve(
 );
 
 /**
- * Graceful shutdown: stop the scheduler loop and close the HTTP server.
- * Mirrors the `onClose()` pattern from `instrumentation.ts`. A hard deadline
- * (`SHUTDOWN_FORCE_EXIT_MS`) force-exits the process if `server.close()` is
- * stuck waiting on a hung in-flight connection — the orchestrator would
- * eventually SIGKILL, but an explicit timeout gives a cleaner, faster exit.
+ * Graceful shutdown: stop the scheduler loop, drain in-flight price checks,
+ * then close the HTTP server. Mirrors the `onClose()` pattern from
+ * `instrumentation.ts`. A hard deadline (`SHUTDOWN_FORCE_EXIT_MS`) force-exits
+ * the process if draining or `server.close()` is stuck — the orchestrator
+ * would eventually SIGKILL, but an explicit timeout gives a cleaner, faster
+ * exit.
  */
 function shutdown(): void {
   stopScheduler();
@@ -312,11 +313,31 @@ function shutdown(): void {
     process.exit(1);
   }, forceExitMs);
 
-  server.close(() => {
-    clearTimeout(forceExitTimer);
-    logger.info("Server stopped");
-    process.exit(0);
-  });
+  // Stop accepting new work, then let running checks finish (bounded by the
+  // force-exit timer) so a deploy does not cut a check mid-transaction.
+  const inflight = activeCheckCount();
+  if (inflight > 0) {
+    logger.info("Draining in-flight price checks before shutdown", { inflight });
+  }
+  void drainInflightChecks()
+    .catch((error: unknown) => {
+      logger.error("Error while draining in-flight checks", errorFields(error));
+    })
+    .then(() => {
+      server.close(() => {
+        clearTimeout(forceExitTimer);
+        logger.info("Server stopped");
+        process.exit(0);
+      });
+    });
+}
+
+/** Polls the single-flight registry until all running checks settle. */
+async function drainInflightChecks(): Promise<void> {
+  const pollMs = 200;
+  while (activeCheckCount() > 0) {
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
 }
 
 process.on("SIGTERM", shutdown);

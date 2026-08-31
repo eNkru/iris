@@ -237,7 +237,7 @@ export function ProductList() {
                     className={`block truncate text-base font-semibold tracking-tight transition-colors hover:text-[var(--accent)] ${
                       product.active
                         ? "text-stone-900 dark:text-stone-100"
-                        : "text-stone-400 dark:text-stone-500"
+                        : "text-stone-500 dark:text-stone-400"
                     }`}
                   >
                     {product.name ?? product.url}
@@ -256,7 +256,7 @@ export function ProductList() {
                     </Badge>
                   ) : null}
                 </div>
-                <p className="truncate text-xs text-stone-400 dark:text-stone-500">
+                <p className="truncate text-xs text-stone-500 dark:text-stone-400">
                   {product.url}
                 </p>
                 <p className="text-sm text-stone-500 dark:text-stone-400">
@@ -266,7 +266,7 @@ export function ProductList() {
                         className={`text-base font-semibold tabular-nums ${
                           product.active
                             ? "text-stone-900 dark:text-stone-100"
-                            : "text-stone-400 dark:text-stone-500"
+                            : "text-stone-500 dark:text-stone-400"
                         }`}
                       >
                         {formatPrice(product.currentPrice, product.currency)}

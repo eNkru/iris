@@ -60,7 +60,7 @@ function fillDailyGaps(
   let readingIdx = 0;
   let currentPrice = firstReading.price;
 
-  for (let day = startTs; day <= today; day += MS_PER_DAY) {
+  for (let day = startTs; day <= today; ) {
     // Advance through all readings that fall on or before this day
     while (readingIdx < readings.length) {
       const reading = readings[readingIdx];
@@ -72,6 +72,11 @@ function fillDailyGaps(
     }
 
     result.push({ checkedAt: new Date(day), price: currentPrice });
+
+    // Re-derive midnight instead of adding 24h: on 25-hour DST-fallback days
+    // a fixed +24h step would land mid-day and produce a duplicate calendar
+    // day on the X-axis.
+    day = startOfDay(new Date(day + MS_PER_DAY)).getTime();
   }
 
   return result;
@@ -177,9 +182,22 @@ export function PriceChart({
               tickFormatter={(value: number) => formatPrice(value, currency)}
               stroke="var(--chart-axis)"
               fontSize={12}
-              width={70}
+              // Wide enough for long tick labels (e.g. "US$1,234.56");
+              // width=70 clipped six-digit prices into "...".
+              width={96}
             />
             <Tooltip
+              // Dark-aware surfaces via CSS vars — the default white bubble
+              // is jarring in dark mode (index.css defines --surface per
+              // theme; the chart SVG inherits the matching palette).
+              contentStyle={{
+                backgroundColor: "var(--surface)",
+                border: "1px solid var(--chart-grid)",
+                borderRadius: 8,
+                color: "var(--text)",
+              }}
+              itemStyle={{ color: "var(--text)" }}
+              labelStyle={{ color: "var(--text-muted)" }}
               labelFormatter={(value) =>
                 new Date(String(value)).toLocaleString()
               }

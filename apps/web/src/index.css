@@ -18,6 +18,8 @@
   --surface: #ffffff;
   --surface-muted: #fafaf9;
   --border-subtle: #e7e5e4;
+  --text: #1c1917;
+  --text-muted: #78716c;
   --chart-grid: #e7e5e4;
   --chart-axis: #a8a29e;
   --chart-line: #d97706;
@@ -36,6 +38,8 @@
   --surface: #1c1917;
   --surface-muted: #0c0a09;
   --border-subtle: #292524;
+  --text: #fafaf9;
+  --text-muted: #a8a29e;
   --chart-grid: #292524;
   --chart-axis: #78716c;
   --chart-line: #fbbf24;

@@ -101,7 +101,7 @@ export function ProductDetailPage() {
                 >
                   {product.name ?? product.url}
                 </h1>
-                <p className="truncate text-sm text-stone-400 dark:text-stone-500">
+                <p className="truncate text-sm text-stone-500 dark:text-stone-400">
                   {product.url}
                 </p>
               </div>

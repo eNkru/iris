@@ -3,12 +3,13 @@
 import { authClient } from "@iris/auth/client";
 import { Link, useLocation, useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useSession } from "../hooks/use-session";
 import { useI18n } from "../lib/i18n";
 import { BrandMark } from "./brand-mark";
 import { LanguageToggle } from "./language-toggle";
 import { ThemeToggle } from "./theme-toggle";
-import { ButtonSecondary } from "./ui";
+import { ButtonSecondary, Spinner } from "./ui";
 
 /**
  * Sticky top navigation for authenticated pages: brand monogram + app links +
@@ -27,11 +28,24 @@ export function AppNav() {
   const queryClient = useQueryClient();
   const { user, loaded } = useSession();
   const { t } = useI18n();
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState(false);
 
   const handleSignOut = async () => {
-    await authClient.signOut();
-    queryClient.clear();
-    navigate("/login", { replace: true });
+    setSignOutError(false);
+    setSigningOut(true);
+    try {
+      await authClient.signOut();
+      queryClient.clear();
+      navigate("/login", { replace: true });
+    } catch {
+      // Network/API failure: stay signed in, tell the user, keep the button
+      // usable for a retry. (An unhandled rejection here would hit the
+      // process-level handler on the server — but this is client-side.)
+      setSignOutError(true);
+    } finally {
+      setSigningOut(false);
+    }
   };
 
   const navLink = (href: string, label: string) => {
@@ -79,9 +93,22 @@ export function AppNav() {
           <span className="hidden max-w-[12rem] truncate text-sm text-stone-500 sm:inline dark:text-stone-400">
             {loaded ? user?.email ?? "" : "…"}
           </span>
-          <ButtonSecondary onClick={handleSignOut}>
-            {t("nav.signOut")}
+          <ButtonSecondary
+            onClick={handleSignOut}
+            disabled={signingOut}
+            title={signOutError ? t("nav.signOutError") : undefined}
+          >
+            {signingOut ? (
+              <Spinner label={t("nav.signingOut")} />
+            ) : (
+              t("nav.signOut")
+            )}
           </ButtonSecondary>
+          {signOutError ? (
+            <span role="alert" className="text-xs text-red-700 dark:text-red-400">
+              {t("nav.signOutError")}
+            </span>
+          ) : null}
         </div>
       </div>
     </header>

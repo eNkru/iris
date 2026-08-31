@@ -92,7 +92,7 @@ export function AdminSettingsSection() {
               }}
               disabled={updateGlobalSettings.isPending}
             />
-            <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
+            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
               {t("adminSettings.intervalHint")}
             </p>
           </div>
@@ -111,7 +111,7 @@ export function AdminSettingsSection() {
               }}
               disabled={updateGlobalSettings.isPending}
             />
-            <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
+            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
               {data?.settings.telegramBotToken
                 ? t("adminSettings.botTokenStored", {
                     token: data.settings.telegramBotToken,
