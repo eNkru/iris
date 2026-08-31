@@ -45,3 +45,14 @@ export const logger = {
 };
 
 export type Logger = typeof logger;
+
+/**
+ * Structured fields for logging an unknown error value (logging.md): the
+ * message plus the stack when available, so a production failure can actually
+ * be diagnosed. Usage: `logger.error("… failed", { productId, ...errorFields(err) })`.
+ */
+export function errorFields(error: unknown): { error: string; stack?: string } {
+  return error instanceof Error
+    ? { error: error.message, stack: error.stack }
+    : { error: String(error) };
+}

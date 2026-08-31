@@ -12,8 +12,9 @@ import { stat } from "node:fs/promises";
 import { auth } from "@iris/auth";
 import { getProductImageForUser } from "@iris/database";
 import { router } from "@iris/api/orpc/router";
+import { getOrGenerateLogId } from "@iris/api/orpc/procedures";
 import { startScheduler, stopScheduler } from "@iris/prices";
-import { getEnv, logger } from "@iris/utils";
+import { getEnv, logger, errorFields } from "@iris/utils";
 
 /**
  * Process-level failure handlers, registered before any async work starts.
@@ -29,10 +30,7 @@ import { getEnv, logger } from "@iris/utils";
  *   container. The logger writes synchronously, so the record survives exit.
  */
 process.on("unhandledRejection", (reason) => {
-  logger.error("Unhandled promise rejection", {
-    error: reason instanceof Error ? reason.message : String(reason),
-    stack: reason instanceof Error ? reason.stack : undefined,
-  });
+  logger.error("Unhandled promise rejection", errorFields(reason));
 });
 
 process.on("uncaughtException", (error) => {
@@ -98,14 +96,31 @@ app.use("*", async (c, next) => {
 const rpcHandler = new RPCHandler(router);
 
 app.on(["GET", "POST"], "/api/rpc/*", async (c) => {
+  // Resolve the request id ONCE here so the request log below and every
+  // procedure-level log (logIdMiddleware) share the same id. A client may
+  // propagate its own `x-log-id` for distributed tracing.
+  const logId = getOrGenerateLogId(c.req.raw.headers);
+  const startedAt = Date.now();
+
   const { matched, response } = await rpcHandler.handle(c.req.raw, {
     prefix: "/api/rpc",
-    context: { headers: c.req.raw.headers },
+    context: { headers: c.req.raw.headers, logId },
   });
 
   if (!matched) {
     return c.body("Not found", 404);
   }
+
+  // One structured line per RPC request (logging.md): path, status, latency
+  // and the request id that also appears on any error log — this is the
+  // backbone for tracing a failing request across its log entries.
+  logger.info("RPC request", {
+    logId,
+    method: c.req.method,
+    path: c.req.path,
+    status: response.status,
+    durationMs: Date.now() - startedAt,
+  });
 
   return response;
 });
@@ -261,15 +276,11 @@ function startSchedulerSafely(): void {
   try {
     startScheduler({
       onError: (error: unknown) => {
-        logger.error("Scheduler tick error", {
-          error: error instanceof Error ? error.message : String(error),
-        });
+        logger.error("Scheduler tick error", errorFields(error));
       },
     });
   } catch (error) {
-    logger.error("Failed to start scheduler", {
-      error: error instanceof Error ? error.message : String(error),
-    });
+    logger.error("Failed to start scheduler", errorFields(error));
   }
 }
 

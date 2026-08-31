@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@iris/database";
 import { alertChannels } from "@iris/database/drizzle/schema/sqlite";
-import { logger } from "@iris/utils";
+import { logger, errorFields } from "@iris/utils";
 import { getChannel, registerChannel } from "./channel";
 import { telegramChannel } from "./telegram";
 import type { PriceAlertNotification } from "./format";
@@ -94,8 +94,7 @@ export async function dispatchPriceAlert(
       logger.error("Price alert dispatch failed", {
         userId: notification.userId,
         productId: notification.productId,
-        error:
-          result.reason instanceof Error ? result.reason.message : String(result.reason),
+        ...errorFields(result.reason),
       });
     }
   }

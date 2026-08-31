@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@iris/database";
 import { priceReadings, products } from "@iris/database/drizzle/schema/sqlite";
-import { logger } from "@iris/utils";
+import { errorFields, logger } from "@iris/utils";
 import { dispatchPriceAlert } from "../notifications/dispatch";
 import { roundToCent, shouldAlert } from "./alert-rules";
 import { extractPrice } from "./extract-price";
@@ -87,8 +87,8 @@ async function runCheckPrice(productId: string): Promise<CheckPriceResult> {
       if (deadlineFired) {
         logger.error("Abandoned price check failed late", {
           productId,
-          error: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
+          abandoned: deadlineFired,
+          ...errorFields(error),
         });
       }
     },

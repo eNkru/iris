@@ -3,7 +3,7 @@ import pLimit from "p-limit";
 import { db } from "@iris/database";
 import { products } from "@iris/database/drizzle/schema/sqlite";
 import { getGlobalSettings } from "@iris/database/drizzle/queries";
-import { getEnv, logger } from "@iris/utils";
+import { getEnv, logger, errorFields } from "@iris/utils";
 import { checkPrice } from "../pipeline/check-price";
 
 type ProductRow = typeof products.$inferSelect;
@@ -53,9 +53,7 @@ export function startScheduler(options: SchedulerOptions = {}): void {
   const tickMs = options.tickMs ?? getEnv().SCHEDULER_TICK_MS;
   tickTimer = setInterval(() => {
     void runSchedulerTick(options).catch((error: unknown) => {
-      logger.error("Scheduler tick failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logger.error("Scheduler tick failed", errorFields(error));
       options.onError?.(error);
     });
   }, tickMs);
@@ -116,9 +114,7 @@ export async function runSchedulerTick(options: SchedulerOptions = {}): Promise<
 
       for (const result of results) {
         if (result.status === "rejected") {
-          logger.error("Scheduler checkPrice failed", {
-            error: result.reason instanceof Error ? result.reason.message : String(result.reason),
-          });
+          logger.error("Scheduler checkPrice failed", errorFields(result.reason));
         }
       }
 
