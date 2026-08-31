@@ -210,8 +210,9 @@ export async function sendProductSummary(userId: string): Promise<ProductSummary
       if (typeof chatId === "string" && chatId.trim() !== "") {
         const lang: Language = config.language === "zh" ? "zh" : "en";
         const text = textByLanguage.get(lang) ?? formatProductSummaryMessage(items, lang);
-        await sendTelegramText(chatId, text, { userId, productsCount, language: lang });
-        return true;
+        // sendTelegramText reports actual delivery (false on failure) —
+        // counting only real successes keeps the "sent" metric honest.
+        return sendTelegramText(chatId, text, { userId, productsCount, language: lang });
       }
       logger.warn("Telegram channel missing chatId; skipped summary", {
         userId,

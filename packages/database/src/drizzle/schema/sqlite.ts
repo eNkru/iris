@@ -35,6 +35,10 @@ export const products = sqliteTable(
     currentPrice: text("currentPrice"),
     imagePath: text("imagePath"),
     lastCheckedAt: integer("lastCheckedAt", { mode: "timestamp" }),
+    /** Outcome of the most recent check: changed | unchanged | unavailable | failed. Null = never checked. */
+    lastCheckStatus: text("lastCheckStatus"),
+    /** Failure reason when lastCheckStatus is "failed" (extraction error, anti-bot block, deadline). Null otherwise. */
+    lastCheckError: text("lastCheckError"),
     pollIntervalMinutes: integer("pollIntervalMinutes"),
     alertRules: text("alertRules", { mode: "json" }).$type<AlertRules>(),
     active: integer("active", { mode: "boolean" }).notNull().default(true),

@@ -75,13 +75,19 @@ export async function dispatchPriceAlert(
           userId: notification.userId,
           productId: notification.productId,
         });
-        return Promise.resolve();
+        // A channel without an adapter was NOT delivered — resolve false so
+        // it is not counted as sent (it never even attempted delivery).
+        return Promise.resolve(false);
       }
       return adapter.send(notification, asRecord(channel.config));
     }),
   );
 
-  const sent = results.filter((result) => result.status === "fulfilled").length;
+  // Only a fulfilled promise resolving `true` means the message actually
+  // reached the channel; adapters report false for skipped/failed sends.
+  const sent = results.filter(
+    (result) => result.status === "fulfilled" && result.value === true,
+  ).length;
 
   for (const result of results) {
     if (result.status === "rejected") {

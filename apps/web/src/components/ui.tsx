@@ -136,10 +136,13 @@ export function Badge({
   children,
   tone = "neutral",
   className = "",
+  title,
 }: {
   children: ReactNode;
   tone?: "neutral" | "success" | "warning" | "accent";
   className?: string;
+  /** Optional native tooltip text (e.g. the persisted lastCheckError). */
+  title?: string;
 }) {
   const tones: Record<NonNullable<typeof tone>, string> = {
     neutral:
@@ -153,6 +156,7 @@ export function Badge({
   };
   return (
     <span
+      title={title}
       className={`inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-xs font-medium ${tones[tone]} ${className}`}
     >
       {children}

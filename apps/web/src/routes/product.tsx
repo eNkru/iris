@@ -126,6 +126,17 @@ export function ProductDetailPage() {
                 time: formatRelativeTime(product.lastCheckedAt),
               })}
             </span>
+            {/* Persisted last-check failure (scheduler checks included). Hidden
+                while a fresh manual-check result is displayed below so the
+                same failure is not shown twice. */}
+            {product.lastCheckStatus === "failed" && !checkNow.data ? (
+              <span className="text-amber-700 dark:text-amber-300">
+                {t("detail.checkFailed", {
+                  reason:
+                    product.lastCheckError ?? t("detail.checkFailedUnknown"),
+                })}
+              </span>
+            ) : null}
           </div>
 
           <div className="pt-1">

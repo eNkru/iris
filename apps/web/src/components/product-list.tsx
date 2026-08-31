@@ -44,7 +44,10 @@ export function ProductList() {
   );
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [summaryCount, setSummaryCount] = useState<number | null>(null);
+  const [summaryResult, setSummaryResult] = useState<{
+    sent: number;
+    productsCount: number;
+  } | null>(null);
   const [lightbox, setLightbox] = useState<
     { id: string; alt: string; triggerId: string } | null
   >(null);
@@ -97,10 +100,10 @@ export function ProductList() {
 
   const handleSendSummary = () => {
     setActionError(null);
-    setSummaryCount(null);
+    setSummaryResult(null);
     sendSummary.mutate(undefined, {
       onSuccess: (data) => {
-        setSummaryCount(data.productsCount);
+        setSummaryResult({ sent: data.sent, productsCount: data.productsCount });
       },
       onError: (err) => setActionError(err.message),
     });
@@ -120,19 +123,24 @@ export function ProductList() {
     );
   }
 
+  // `sent` is the honest per-channel delivery count (sendSummary API); when
+  // nothing arrived (e.g. Telegram send failed) tell the user instead of
+  // pretending the summary went out.
   const summaryBox =
-    summaryCount !== null ? (
+    summaryResult === null ? null : summaryResult.sent === 0 ? (
+      <ErrorBox message={t("productList.summaryNotSent")} />
+    ) : (
       <SuccessBox
         message={t("productList.summarySent", {
-          n: summaryCount,
+          n: summaryResult.productsCount,
           items: t(
-            summaryCount === 1
+            summaryResult.productsCount === 1
               ? "productList.summarySent.one"
               : "productList.summarySent.other",
           ),
         })}
       />
-    ) : null;
+    );
 
   const listToolbar = (
     <div className="flex flex-wrap items-center justify-end gap-2">
@@ -231,6 +239,14 @@ export function ProductList() {
                       ? t("productList.active")
                       : t("productList.paused")}
                   </Badge>
+                  {product.lastCheckStatus === "failed" ? (
+                    <Badge
+                      tone="warning"
+                      title={product.lastCheckError ?? undefined}
+                    >
+                      {t("productList.checkFailed")}
+                    </Badge>
+                  ) : null}
                 </div>
                 <p className="truncate text-xs text-stone-400 dark:text-stone-500">
                   {product.url}

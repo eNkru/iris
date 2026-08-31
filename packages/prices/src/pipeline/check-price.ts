@@ -116,7 +116,7 @@ async function runCheckPriceWork(productId: string): Promise<CheckPriceResult> {
     // Transport failed after retries (argus down, network error, non-JSON) or
     // argus could not extract a price. These are the legacy operator-facing
     // strings — never an anti-bot misattribution.
-    await touchLastCheckedAt(productId, now);
+    await recordCheckOutcome(productId, now, "failed", extraction.message);
     return { status: "failed", reason: extraction.message };
   }
 
@@ -125,7 +125,8 @@ async function runCheckPriceWork(productId: string): Promise<CheckPriceResult> {
   // any model call is spent, and surfaced here so the operator can distinguish
   // anti-bot from genuine stock-out (AC3).
   if (extraction.kind === "blocked") {
-    await touchLastCheckedAt(productId, now);
+    const reason = `Anti-bot WAF deny page (${extraction.signature}) — retailer blocks automated access.`;
+    await recordCheckOutcome(productId, now, "failed", reason);
     logger.warn("Page blocked by anti-bot WAF", {
       productId,
       url: product.url,
@@ -133,13 +134,13 @@ async function runCheckPriceWork(productId: string): Promise<CheckPriceResult> {
     });
     return {
       status: "failed",
-      reason: `Anti-bot WAF deny page (${extraction.signature}) — retailer blocks automated access.`,
+      reason,
     };
   }
 
   if (!extraction.available) {
     // Out of stock / no visible price — record nothing, just mark checked.
-    await touchLastCheckedAt(productId, now);
+    await recordCheckOutcome(productId, now, "unavailable");
     logger.info("Product reported unavailable by extraction", { productId });
     return { status: "unavailable" };
   }
@@ -194,6 +195,8 @@ async function runCheckPriceWork(productId: string): Promise<CheckPriceResult> {
         .update(products)
         .set({
           lastCheckedAt: now,
+          lastCheckStatus: "unchanged",
+          lastCheckError: null,
           updatedAt: now,
           ...(imageFilename ? { imagePath: imageFilename } : {}),
         })
@@ -226,6 +229,8 @@ async function runCheckPriceWork(productId: string): Promise<CheckPriceResult> {
         currency: extraction.currency ?? locked.currency,
         name: locked.name ?? extraction.name ?? null,
         lastCheckedAt: now,
+        lastCheckStatus: "changed",
+        lastCheckError: null,
         updatedAt: now,
         ...(imageFilename ? { imagePath: imageFilename } : {}),
       })
@@ -297,12 +302,24 @@ async function getProductForCheck(productId: string): Promise<ProductRow | null>
 }
 
 /**
- * Record that a check happened without a price change / without a successful
- * extraction, so the scheduler does not immediately re-check the product.
+ * Record the outcome of a check that terminated outside the main transaction
+ * (failed extraction, anti-bot block, unavailable) so the UI can surface
+ * unhealthy products instead of showing them as silently healthy. Successful
+ * checks (changed/unchanged) persist their status inside the transaction.
  */
-async function touchLastCheckedAt(productId: string, at: Date): Promise<void> {
+async function recordCheckOutcome(
+  productId: string,
+  at: Date,
+  status: "failed" | "unavailable",
+  error?: string,
+): Promise<void> {
   await db
     .update(products)
-    .set({ lastCheckedAt: at, updatedAt: at })
+    .set({
+      lastCheckedAt: at,
+      lastCheckStatus: status,
+      lastCheckError: error ?? null,
+      updatedAt: at,
+    })
     .where(eq(products.id, productId));
 }

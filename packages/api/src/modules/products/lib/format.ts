@@ -20,12 +20,28 @@ export function toProductOutput(row: ProductRow): ProductOutput {
     currentPrice: toNullableNumber(row.currentPrice),
     imagePath: row.imagePath,
     lastCheckedAt: row.lastCheckedAt,
+    lastCheckStatus: toCheckStatus(row.lastCheckStatus),
+    lastCheckError: row.lastCheckStatus === "failed" ? row.lastCheckError : null,
     pollIntervalMinutes: row.pollIntervalMinutes,
     alertRules: row.alertRules,
     active: row.active,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+/**
+ * Narrow a raw DB text column to the known check-status union. Defensive
+ * against hand-edited databases: an unknown value surfaces as null (never
+ * checked) instead of poisoning the API output.
+ */
+function toCheckStatus(value: string | null): ProductOutput["lastCheckStatus"] {
+  return value === "changed" ||
+    value === "unchanged" ||
+    value === "unavailable" ||
+    value === "failed"
+    ? value
+    : null;
 }
 
 /**

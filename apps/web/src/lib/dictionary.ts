@@ -77,6 +77,8 @@ const en = {
   "productList.summarySent.other": "items",
   "productList.openImage": "Open image for {name}",
   "productList.imageDialog": "Product image: {name}",
+  "productList.checkFailed": "Check failed",
+  "productList.summaryNotSent": "The summary could not be delivered to Telegram.",
 
   // Telegram help tooltip
   "tooltip.title": "How to connect Telegram",
@@ -209,6 +211,7 @@ const en = {
   "detail.alertSent": " (alert sent)",
   "detail.priceUnchanged": "Price unchanged ({price}).",
   "detail.unavailable": "Page reached but no price could be extracted.",
+  "detail.checkFailedUnknown": "Unknown error",
   "detail.checkFailed": "Check failed: {reason}",
   "detail.priceHistory": "Price history",
   "detail.settings": "Settings",
@@ -293,6 +296,8 @@ const zh: Dictionary = {
   "productList.summarySent.other": "个商品",
   "productList.openImage": "查看 {name} 的图片",
   "productList.imageDialog": "商品图片：{name}",
+  "productList.checkFailed": "检查失败",
+  "productList.summaryNotSent": "摘要未能送达 Telegram。",
 
   // Telegram help tooltip
   "tooltip.title": "如何连接 Telegram",
@@ -425,6 +430,7 @@ const zh: Dictionary = {
   "detail.alertSent": "（已发送提醒）",
   "detail.priceUnchanged": "价格未变动（{price}）。",
   "detail.unavailable": "页面可访问，但未能提取到价格。",
+  "detail.checkFailedUnknown": "未知错误",
   "detail.checkFailed": "检查失败：{reason}",
   "detail.priceHistory": "价格历史",
   "detail.settings": "设置",
