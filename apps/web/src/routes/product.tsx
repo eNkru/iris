@@ -18,7 +18,7 @@ import {
 } from "../components/ui";
 
 export function ProductDetailPage() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const params = useParams<{ id: string }>();
   const id = params?.id ?? "";
   const { data, isLoading, isError, error } = useProduct(id);
@@ -123,7 +123,7 @@ export function ProductDetailPage() {
             )}
             <span title={formatDateTime(product.lastCheckedAt)}>
               {t("detail.lastChecked", {
-                time: formatRelativeTime(product.lastCheckedAt),
+                time: formatRelativeTime(product.lastCheckedAt, lang),
               })}
             </span>
             {/* Persisted last-check failure (scheduler checks included). Hidden
@@ -147,7 +147,7 @@ export function ProductDetailPage() {
                 checkNow.mutate(
                   { id: product.id },
                   {
-                    onError: (err) => setCheckError(err.message),
+                    onError: () => setCheckError(t("detail.checkError")),
                   },
                 );
               }}

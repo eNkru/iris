@@ -9,6 +9,7 @@ import {
   useUpdateProduct,
 } from "../hooks/use-products";
 import { useSendSummary } from "../hooks/use-channels";
+import { ORPCError } from "@orpc/client";
 import { useI18n } from "../lib/i18n";
 import { TelegramHelpTooltip } from "./telegram-help-tooltip";
 import {
@@ -29,7 +30,7 @@ import {
  * actions (view, check now, pause/resume, delete).
  */
 export function ProductList() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const { data, isLoading, isError, error, refetch } = useProducts();
   const checkNow = useCheckNow();
   const updateProduct = useUpdateProduct();
@@ -61,7 +62,8 @@ export function ProductList() {
     checkNow.mutate(
       { id },
       {
-        onError: (err) => setActionError(err.message),
+        // Localized fallback — raw oRPC messages are English-only.
+        onError: () => setActionError(t("productList.checkError")),
         onSettled: () => setPendingAction(null),
       },
     );
@@ -77,7 +79,7 @@ export function ProductList() {
     updateProduct.mutate(
       { id, active: !product.active },
       {
-        onError: (err) => setActionError(err.message),
+        onError: () => setActionError(t("productList.updateError")),
         onSettled: () => setPendingAction(null),
       },
     );
@@ -89,10 +91,8 @@ export function ProductList() {
     setActionError(null);
     try {
       await deleteProduct.mutateAsync(id);
-    } catch (err) {
-      setActionError(
-        err instanceof Error ? err.message : t("productList.deleteError"),
-      );
+    } catch {
+      setActionError(t("productList.deleteError"));
     } finally {
       setDeletingId(null);
     }
@@ -105,7 +105,15 @@ export function ProductList() {
       onSuccess: (data) => {
         setSummaryResult({ sent: data.sent, productsCount: data.productsCount });
       },
-      onError: (err) => setActionError(err.message),
+      onError: (err) => {
+        // Distinguish "not configured" (actionable guidance) from a send
+        // failure so the user knows whether to head to Settings or retry.
+        setActionError(
+          err instanceof ORPCError && err.code === "PRECONDITION_FAILED"
+            ? t("productList.summaryNoChannel")
+            : t("productList.summarySendError"),
+        );
+      },
     });
   };
 
@@ -265,7 +273,7 @@ export function ProductList() {
                       </span>
                       {t("productList.checked")}
                       <span title={formatDateTime(product.lastCheckedAt)}>
-                        {formatRelativeTime(product.lastCheckedAt)}
+                        {formatRelativeTime(product.lastCheckedAt, lang)}
                       </span>
                     </>
                   ) : (

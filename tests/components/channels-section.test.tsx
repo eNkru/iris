@@ -160,7 +160,8 @@ describe("ChannelsSection", () => {
 
     const alert = screen.getByRole("alert");
     expect(alert).toBeInTheDocument();
-    expect(alert).toHaveTextContent("network down");
+    // Errors render the localized message, not the raw error text.
+    expect(alert).toHaveTextContent("Failed to load");
   });
 
   it("shows empty state message when no channels", () => {

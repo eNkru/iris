@@ -6,6 +6,7 @@ import type {
   LabelHTMLAttributes,
   ReactNode,
 } from "react";
+import type { Lang } from "../lib/dictionary";
 
 /**
  * Small Tailwind-styled primitives shared across pages. Kept intentionally
@@ -212,28 +213,35 @@ export function formatPrice(price: number, currency: string | null): string {
   }
 }
 
-export function formatRelativeTime(date: Date | null): string {
+/**
+ * Locale-aware relative time for "last checked" style metadata. The
+ * sub-minute case uses a fixed label (Intl.RelativeTimeFormat would render
+ * noisy "30 seconds ago"); everything else goes through Intl so both
+ * languages get idiomatic output ("5 minutes ago" / "5 分钟前").
+ */
+export function formatRelativeTime(date: Date | null, lang: Lang = "en"): string {
   if (!date) {
     return "—";
   }
-  const elapsedMs = Date.now() - date.getTime();
-  const seconds = Math.floor(elapsedMs / 1000);
-  if (seconds < 60) {
-    return "just now";
+  const locale = lang === "zh" ? "zh-CN" : "en";
+  const elapsedSeconds = Math.round((Date.now() - date.getTime()) / 1000);
+  if (elapsedSeconds < 60) {
+    return lang === "zh" ? "刚刚" : "just now";
   }
-  const minutes = Math.floor(seconds / 60);
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+  const minutes = Math.round(elapsedSeconds / 60);
   if (minutes < 60) {
-    return `${minutes}m ago`;
+    return rtf.format(-minutes, "minute");
   }
-  const hours = Math.floor(minutes / 60);
+  const hours = Math.round(minutes / 60);
   if (hours < 24) {
-    return `${hours}h ago`;
+    return rtf.format(-hours, "hour");
   }
-  const days = Math.floor(hours / 24);
+  const days = Math.round(hours / 24);
   if (days < 7) {
-    return `${days}d ago`;
+    return rtf.format(-days, "day");
   }
-  return date.toLocaleDateString();
+  return date.toLocaleDateString(locale);
 }
 
 export function formatDateTime(date: Date | null): string {

@@ -39,8 +39,8 @@ export function AddProductForm() {
       } else if (result.check.status === "not_found") {
         setError(t("addProduct.notFound"));
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("addProduct.error"));
+    } catch {
+      setError(t("addProduct.error"));
     }
   };
 

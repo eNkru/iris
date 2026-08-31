@@ -32,7 +32,7 @@ const LANGUAGE_OPTIONS = [
 
 export function ChannelsSection() {
   const { t } = useI18n();
-  const { data, isLoading, isError, error } = useChannels();
+  const { data, isLoading, isError } = useChannels();
   const createChannel = useCreateChannel();
   const updateChannel = useUpdateChannel();
   const deleteChannel = useDeleteChannel();
@@ -64,8 +64,8 @@ export function ChannelsSection() {
       });
       setChatId("");
       setLanguage("en");
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : t("channels.addError"));
+    } catch {
+      setErrorMessage(t("channels.addError"));
     }
   };
 
@@ -74,8 +74,8 @@ export function ChannelsSection() {
     setErrorMessage(null);
     try {
       await deleteChannel.mutateAsync(id);
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : t("channels.deleteError"));
+    } catch {
+      setErrorMessage(t("channels.deleteError"));
     } finally {
       setDeletingId(null);
     }
@@ -91,7 +91,7 @@ export function ChannelsSection() {
     <div className="space-y-4">
       {isLoading ? <Spinner label={t("channels.loading")} /> : null}
       {isError ? (
-        <ErrorBox message={error instanceof Error ? error.message : t("channels.loadError")} />
+        <ErrorBox message={t("channels.loadError")} />
       ) : null}
 
       {channels.length > 0 ? (
@@ -123,7 +123,7 @@ export function ChannelsSection() {
                         { id: channel.id, language: next },
                         {
                           onSettled: () => setUpdatingId(null),
-                          onError: (err) => setErrorMessage(err.message),
+                          onError: () => setErrorMessage(t("channels.updateError")),
                         },
                       );
                     }}
@@ -135,7 +135,7 @@ export function ChannelsSection() {
                         { id: channel.id, enabled: !channel.enabled },
                         {
                           onSettled: () => setUpdatingId(null),
-                          onError: (err) => setErrorMessage(err.message),
+                          onError: () => setErrorMessage(t("channels.updateError")),
                         },
                       );
                     }}

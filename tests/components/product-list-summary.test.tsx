@@ -65,6 +65,8 @@ vi.mock("../../apps/web/src/lib/i18n", () => ({
         "productList.deleteError": "Failed to delete product.",
         "productList.sendSummary": "Send summary",
         "productList.sending": "Sending...",
+        "productList.summarySendError": "Failed to send the summary.",
+        "productList.summaryNoChannel": "No enabled Telegram channel.",
         "productList.summarySent": "Summary sent ({n} {items})",
         "productList.summarySent.one": "item",
         "productList.summarySent.other": "items",
@@ -270,7 +272,8 @@ describe("ProductList send summary button", () => {
 
     const alert = screen.getByRole("alert");
     expect(alert).toBeInTheDocument();
-    expect(alert).toHaveTextContent("send failed");
+    // Errors render the localized message, not the raw error text.
+    expect(alert).toHaveTextContent("Failed to send the summary.");
 
     // On error the success box must NOT render.
     expect(screen.queryByRole("status")).not.toBeInTheDocument();

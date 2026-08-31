@@ -58,10 +58,8 @@ export function AdminSettingsSection() {
       });
       setBotToken("");
       setSavedAt(Date.now());
-    } catch (err) {
-      setErrorMessage(
-        err instanceof Error ? err.message : t("adminSettings.saveError"),
-      );
+    } catch {
+      setErrorMessage(t("adminSettings.saveError"));
     }
   };
 
@@ -139,12 +137,8 @@ export function AdminSettingsSection() {
                     });
                     setBotToken("");
                     setSavedAt(Date.now());
-                  } catch (err) {
-                    setErrorMessage(
-                      err instanceof Error
-                        ? err.message
-                        : t("adminSettings.saveError"),
-                    );
+                  } catch {
+                    setErrorMessage(t("adminSettings.saveError"));
                   }
                 }}
               >

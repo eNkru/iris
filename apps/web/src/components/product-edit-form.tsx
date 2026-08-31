@@ -92,8 +92,8 @@ export function ProductEditForm({ product }: { product: ProductOutput }) {
         active: product.active,
       });
       setSavedAt(Date.now());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("editForm.saveError"));
+    } catch {
+      setError(t("editForm.saveError"));
     }
   };
 
@@ -198,7 +198,7 @@ export function ProductEditForm({ product }: { product: ProductOutput }) {
           onClick={() => {
             setError(null);
             pauseProduct.mutate({ id: product.id, active: !product.active }, {
-              onError: (err) => setError(err.message),
+              onError: () => setError(t("editForm.updateError")),
             });
           }}
           disabled={pauseProduct.isPending}

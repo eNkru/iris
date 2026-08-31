@@ -11,7 +11,7 @@ import { Button, ErrorBox, Input, Label, Spinner } from "./ui";
  */
 export function UserSettingsSection() {
   const { t } = useI18n();
-  const { data, isLoading, isError, error } = useUserSettings();
+  const { data, isLoading, isError } = useUserSettings();
   const updateUserSettings = useUpdateUserSettings();
 
   const [pollInterval, setPollInterval] = useState("");
@@ -50,10 +50,8 @@ export function UserSettingsSection() {
     try {
       await updateUserSettings.mutateAsync({ pollIntervalDefaultMinutes: parsed });
       setSavedAt(Date.now());
-    } catch (err) {
-      setErrorMessage(
-        err instanceof Error ? err.message : t("userSettings.saveError"),
-      );
+    } catch {
+      setErrorMessage(t("userSettings.saveError"));
     }
   };
 
@@ -61,9 +59,7 @@ export function UserSettingsSection() {
     <div className="space-y-4">
       {isLoading ? <Spinner label={t("userSettings.loading")} /> : null}
       {isError ? (
-        <ErrorBox
-          message={error instanceof Error ? error.message : t("userSettings.loadError")}
-        />
+        <ErrorBox message={t("userSettings.loadError")} />
       ) : null}
       {!isLoading && !isError ? (
         <form onSubmit={onSubmit} className="max-w-md space-y-3">
