@@ -13,9 +13,11 @@ export interface NotificationChannel {
   /**
    * Deliver a price alert to this channel using the per-channel config stored
    * in `alert_channels.config` (e.g. `{ chatId }` for telegram). Implementations
-   * must never throw — failures are logged and the pipeline continues.
+   * must never throw — failures are logged and the pipeline continues. Returns
+   * whether the notification was actually delivered, so dispatch accounting
+   * reflects reality instead of assuming success.
    */
-  send(notification: PriceAlertNotification, config: Record<string, unknown>): Promise<void>;
+  send(notification: PriceAlertNotification, config: Record<string, unknown>): Promise<boolean>;
 }
 
 const registry = new Map<ChannelType, NotificationChannel>();

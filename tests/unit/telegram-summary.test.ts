@@ -262,9 +262,10 @@ describe("sendProductSummary", () => {
   beforeEach(() => {
     mockDbSelect.mockReset();
     mockSendTelegramText.mockReset();
-    // sendTelegramText's real implementation never rejects (best-effort),
-    // and we assert call counts/text below, not returned values — leaving the
-    // mock at vi.fn() defaults (returns undefined) is sufficient.
+    // sendTelegramText's real implementation never rejects (best-effort) and
+    // now returns whether the message was delivered. Default the mock to a
+    // successful delivery (true); failure tests override to false.
+    mockSendTelegramText.mockResolvedValue(true);
   });
 
   afterEach(() => {

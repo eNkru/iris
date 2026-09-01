@@ -71,21 +71,24 @@ function parseTelegramRetryAfter(response: Response): number | undefined {
  * (price-check pipeline or summary delivery). If Telegram rejects the markup
  * (HTTP 400), retries once as plain text so the user still gets the content.
  * `meta` carries structured context for logging.
+ *
+ * Returns whether the message was actually delivered (HTTP 2xx), so callers
+ * can report honest sent counts instead of assuming success.
  */
 export async function sendTelegramText(
   chatId: string,
   text: string,
   meta: Record<string, unknown> = {},
-): Promise<void> {
+): Promise<boolean> {
   if (chatId.trim() === "") {
     logger.warn("Telegram chatId is empty; skipping message", meta);
-    return;
+    return false;
   }
 
   const botToken = await resolveBotToken();
   if (botToken === "") {
     logger.warn("Telegram bot token not configured; skipping message", meta);
-    return;
+    return false;
   }
 
   const post = async (parseMode: "HTML" | undefined): Promise<void> => {
@@ -180,31 +183,33 @@ export async function sendTelegramText(
     } else {
       logger.error("Telegram message failed", { chatId, ...meta });
     }
+    return sent;
   } catch (error) {
     logger.error("Telegram message failed", {
       chatId,
       error: error instanceof Error ? error.message : String(error),
       ...meta,
     });
+    return false;
   }
 }
 
 export const telegramChannel: NotificationChannel = {
   channelType: "telegram",
 
-  async send(notification: PriceAlertNotification, config: Record<string, unknown>): Promise<void> {
+  async send(notification: PriceAlertNotification, config: Record<string, unknown>): Promise<boolean> {
     const chatId = config.chatId;
     if (typeof chatId !== "string" || chatId.trim() === "") {
       logger.warn("Telegram channel config missing chatId; skipping alert", {
         productId: notification.productId,
       });
-      return;
+      return false;
     }
 
     const lang: Language = config.language === "zh" ? "zh" : "en";
     const text = formatPriceAlertMessage(notification, lang);
 
-    await sendTelegramText(chatId, text, {
+    return sendTelegramText(chatId, text, {
       productId: notification.productId,
       direction: notification.direction,
       language: lang,

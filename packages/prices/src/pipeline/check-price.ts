@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@iris/database";
 import { priceReadings, products } from "@iris/database/drizzle/schema/sqlite";
-import { logger } from "@iris/utils";
+import { errorFields, logger } from "@iris/utils";
 import { dispatchPriceAlert } from "../notifications/dispatch";
 import { roundToCent, shouldAlert } from "./alert-rules";
 import { extractPrice } from "./extract-price";
@@ -57,16 +57,53 @@ export function checkPrice(productId: string): Promise<CheckPriceResult> {
   return pending;
 }
 
+/**
+ * Number of price checks currently running (the single-flight map). The HTTP
+ * entrypoint polls this during graceful shutdown so a deploy waits for
+ * in-flight checks instead of cutting them mid-write when the force-exit
+ * deadline allows.
+ */
+export function activeCheckCount(): number {
+  return inflightChecks.size;
+}
+
 async function runCheckPrice(productId: string): Promise<CheckPriceResult> {
   let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+  let deadlineFired = false;
   const deadline = new Promise<CheckPriceResult>((resolve) => {
-    deadlineTimer = setTimeout(
-      () => resolve({ status: "failed", reason: "check_deadline_exceeded" }),
-      CHECK_DEADLINE_MS,
-    );
+    deadlineTimer = setTimeout(() => {
+      deadlineFired = true;
+      resolve({ status: "failed", reason: "check_deadline_exceeded" });
+    }, CHECK_DEADLINE_MS);
   });
 
   const work = runCheckPriceWork(productId);
+  // When the deadline wins the race, `work` keeps running in the background
+  // (v1: no abort). A rejection after that point would have no receiver and
+  // surface as an unhandled rejection — which crashes the process by default
+  // on Node ≥15. Only late failures/completions (deadline already fired) are
+  // logged here; earlier ones propagate to the caller via the race below,
+  // which already logs them, so we avoid double-reporting.
+  void work.then(
+    (result) => {
+      if (deadlineFired) {
+        logger.warn("Abandoned price check completed late", {
+          productId,
+          status: result.status,
+        });
+      }
+    },
+    (error: unknown) => {
+      if (deadlineFired) {
+        logger.error("Abandoned price check failed late", {
+          productId,
+          abandoned: deadlineFired,
+          ...errorFields(error),
+        });
+      }
+    },
+  );
+
   try {
     return await Promise.race([work, deadline]);
   } finally {
@@ -89,7 +126,7 @@ async function runCheckPriceWork(productId: string): Promise<CheckPriceResult> {
     // Transport failed after retries (argus down, network error, non-JSON) or
     // argus could not extract a price. These are the legacy operator-facing
     // strings — never an anti-bot misattribution.
-    await touchLastCheckedAt(productId, now);
+    await recordCheckOutcome(productId, now, "failed", extraction.message);
     return { status: "failed", reason: extraction.message };
   }
 
@@ -98,7 +135,8 @@ async function runCheckPriceWork(productId: string): Promise<CheckPriceResult> {
   // any model call is spent, and surfaced here so the operator can distinguish
   // anti-bot from genuine stock-out (AC3).
   if (extraction.kind === "blocked") {
-    await touchLastCheckedAt(productId, now);
+    const reason = `Anti-bot WAF deny page (${extraction.signature}) — retailer blocks automated access.`;
+    await recordCheckOutcome(productId, now, "failed", reason);
     logger.warn("Page blocked by anti-bot WAF", {
       productId,
       url: product.url,
@@ -106,13 +144,13 @@ async function runCheckPriceWork(productId: string): Promise<CheckPriceResult> {
     });
     return {
       status: "failed",
-      reason: `Anti-bot WAF deny page (${extraction.signature}) — retailer blocks automated access.`,
+      reason,
     };
   }
 
   if (!extraction.available) {
     // Out of stock / no visible price — record nothing, just mark checked.
-    await touchLastCheckedAt(productId, now);
+    await recordCheckOutcome(productId, now, "unavailable");
     logger.info("Product reported unavailable by extraction", { productId });
     return { status: "unavailable" };
   }
@@ -167,6 +205,8 @@ async function runCheckPriceWork(productId: string): Promise<CheckPriceResult> {
         .update(products)
         .set({
           lastCheckedAt: now,
+          lastCheckStatus: "unchanged",
+          lastCheckError: null,
           updatedAt: now,
           ...(imageFilename ? { imagePath: imageFilename } : {}),
         })
@@ -199,6 +239,8 @@ async function runCheckPriceWork(productId: string): Promise<CheckPriceResult> {
         currency: extraction.currency ?? locked.currency,
         name: locked.name ?? extraction.name ?? null,
         lastCheckedAt: now,
+        lastCheckStatus: "changed",
+        lastCheckError: null,
         updatedAt: now,
         ...(imageFilename ? { imagePath: imageFilename } : {}),
       })
@@ -270,12 +312,24 @@ async function getProductForCheck(productId: string): Promise<ProductRow | null>
 }
 
 /**
- * Record that a check happened without a price change / without a successful
- * extraction, so the scheduler does not immediately re-check the product.
+ * Record the outcome of a check that terminated outside the main transaction
+ * (failed extraction, anti-bot block, unavailable) so the UI can surface
+ * unhealthy products instead of showing them as silently healthy. Successful
+ * checks (changed/unchanged) persist their status inside the transaction.
  */
-async function touchLastCheckedAt(productId: string, at: Date): Promise<void> {
+async function recordCheckOutcome(
+  productId: string,
+  at: Date,
+  status: "failed" | "unavailable",
+  error?: string,
+): Promise<void> {
   await db
     .update(products)
-    .set({ lastCheckedAt: at, updatedAt: at })
+    .set({
+      lastCheckedAt: at,
+      lastCheckStatus: status,
+      lastCheckError: error ?? null,
+      updatedAt: at,
+    })
     .where(eq(products.id, productId));
 }

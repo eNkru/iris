@@ -36,6 +36,10 @@ vi.mock("../../apps/web/src/hooks/use-channels", () => ({
 }));
 
 vi.mock("../../apps/web/src/lib/i18n", () => ({
+  LANGUAGE_OPTIONS: [
+    { value: "en", label: "EN" },
+    { value: "zh", label: "中文" },
+  ],
   useI18n: () => ({
     t: (key: string, vars?: Record<string, string | number>) => {
       const translations: Record<string, string> = {
@@ -160,7 +164,8 @@ describe("ChannelsSection", () => {
 
     const alert = screen.getByRole("alert");
     expect(alert).toBeInTheDocument();
-    expect(alert).toHaveTextContent("network down");
+    // Errors render the localized message, not the raw error text.
+    expect(alert).toHaveTextContent("Failed to load");
   });
 
   it("shows empty state message when no channels", () => {

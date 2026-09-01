@@ -11,6 +11,12 @@ export const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   APP_URL: z.string().url().default("http://localhost:3000"),
 
+  // Log output filter (debug | info | warn | error). Optional — the logger
+  // parses process.env directly (default "info") so it keeps working when
+  // environment validation fails at boot; this entry only documents and
+  // validates the value when getEnv() is used.
+  LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).optional(),
+
   // Database — a local SQLite file (the parent directory is created on startup).
   DATABASE_PATH: z.string().min(1, "DATABASE_PATH is required").default("./data/iris.db"),
 

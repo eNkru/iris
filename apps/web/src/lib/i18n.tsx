@@ -11,6 +11,15 @@ import {
 import { LANG_COOKIE_NAME, LANG_STORAGE_KEY, t, type DictKey, type Lang } from "./dictionary";
 
 /**
+ * Language switch options shared by the nav toggle and the per-channel
+ * notification-language selectors (single source of truth).
+ */
+export const LANGUAGE_OPTIONS = [
+  { value: "en", label: "EN" },
+  { value: "zh", label: "中文" },
+] as const;
+
+/**
  * Language context (frontend/state-management.md — UI language is appearance
  * state, same pattern as the theme context). Persisted to localStorage
  * (`iris.lang`); a matching cookie (`iris.lang`) lets server components render

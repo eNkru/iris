@@ -9,6 +9,7 @@ import {
   useUpdateProduct,
 } from "../hooks/use-products";
 import { useSendSummary } from "../hooks/use-channels";
+import { ORPCError } from "@orpc/client";
 import { useI18n } from "../lib/i18n";
 import { TelegramHelpTooltip } from "./telegram-help-tooltip";
 import {
@@ -29,22 +30,26 @@ import {
  * actions (view, check now, pause/resume, delete).
  */
 export function ProductList() {
-  const { t } = useI18n();
-  const { data, isLoading, isError, error, refetch } = useProducts();
+  const { t, lang } = useI18n();
+  const { data, isLoading, isError, error, refetch, isFetching } = useProducts();
   const checkNow = useCheckNow();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
   const sendSummary = useSendSummary();
-  const [pendingAction, setPendingAction] = useState<{
-    id: string;
-    kind: "check" | "toggle";
-  } | null>(null);
+  // Per-action pending ids: two rows can run operations concurrently without
+  // stealing each other's spinner (a single {id, kind} slot dropped the first
+  // row's state when a second row's action started).
+  const [pendingCheckId, setPendingCheckId] = useState<string | null>(null);
+  const [pendingToggleId, setPendingToggleId] = useState<string | null>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
     null,
   );
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [summaryCount, setSummaryCount] = useState<number | null>(null);
+  const [summaryResult, setSummaryResult] = useState<{
+    sent: number;
+    productsCount: number;
+  } | null>(null);
   const [lightbox, setLightbox] = useState<
     { id: string; alt: string; triggerId: string } | null
   >(null);
@@ -53,13 +58,14 @@ export function ProductList() {
   const products = data?.products ?? [];
 
   const handleCheckNow = (id: string) => {
-    setPendingAction({ id, kind: "check" });
+    setPendingCheckId(id);
     setActionError(null);
     checkNow.mutate(
       { id },
       {
-        onError: (err) => setActionError(err.message),
-        onSettled: () => setPendingAction(null),
+        // Localized fallback — raw oRPC messages are English-only.
+        onError: () => setActionError(t("productList.checkError")),
+        onSettled: () => setPendingCheckId((current) => (current === id ? null : current)),
       },
     );
   };
@@ -69,13 +75,13 @@ export function ProductList() {
     if (!product) {
       return;
     }
-    setPendingAction({ id, kind: "toggle" });
+    setPendingToggleId(id);
     setActionError(null);
     updateProduct.mutate(
       { id, active: !product.active },
       {
-        onError: (err) => setActionError(err.message),
-        onSettled: () => setPendingAction(null),
+        onError: () => setActionError(t("productList.updateError")),
+        onSettled: () => setPendingToggleId((current) => (current === id ? null : current)),
       },
     );
   };
@@ -86,10 +92,16 @@ export function ProductList() {
     setActionError(null);
     try {
       await deleteProduct.mutateAsync(id);
-    } catch (err) {
-      setActionError(
-        err instanceof Error ? err.message : t("productList.deleteError"),
-      );
+      // Move focus to the next row (or the list header) so keyboard users do
+      // not fall back to <body> when the deleted row unmounts.
+      const index = products.findIndex((p) => p.id === id);
+      const neighbor = products[index + 1] ?? products[index - 1];
+      const focusTargetId = neighbor ? `product-row-${neighbor.id}` : "product-list";
+      requestAnimationFrame(() => {
+        document.getElementById(focusTargetId)?.focus();
+      });
+    } catch {
+      setActionError(t("productList.deleteError"));
     } finally {
       setDeletingId(null);
     }
@@ -97,12 +109,20 @@ export function ProductList() {
 
   const handleSendSummary = () => {
     setActionError(null);
-    setSummaryCount(null);
+    setSummaryResult(null);
     sendSummary.mutate(undefined, {
       onSuccess: (data) => {
-        setSummaryCount(data.productsCount);
+        setSummaryResult({ sent: data.sent, productsCount: data.productsCount });
       },
-      onError: (err) => setActionError(err.message),
+      onError: (err) => {
+        // Distinguish "not configured" (actionable guidance) from a send
+        // failure so the user knows whether to head to Settings or retry.
+        setActionError(
+          err instanceof ORPCError && err.code === "PRECONDITION_FAILED"
+            ? t("productList.summaryNoChannel")
+            : t("productList.summarySendError"),
+        );
+      },
     });
   };
 
@@ -120,19 +140,24 @@ export function ProductList() {
     );
   }
 
+  // `sent` is the honest per-channel delivery count (sendSummary API); when
+  // nothing arrived (e.g. Telegram send failed) tell the user instead of
+  // pretending the summary went out.
   const summaryBox =
-    summaryCount !== null ? (
+    summaryResult === null ? null : summaryResult.sent === 0 ? (
+      <ErrorBox message={t("productList.summaryNotSent")} />
+    ) : (
       <SuccessBox
         message={t("productList.summarySent", {
-          n: summaryCount,
+          n: summaryResult.productsCount,
           items: t(
-            summaryCount === 1
+            summaryResult.productsCount === 1
               ? "productList.summarySent.one"
               : "productList.summarySent.other",
           ),
         })}
       />
-    ) : null;
+    );
 
   const listToolbar = (
     <div className="flex flex-wrap items-center justify-end gap-2">
@@ -151,8 +176,15 @@ export function ProductList() {
         </ButtonSecondary>
       </div>
       {products.length > 0 ? (
-        <ButtonSecondary onClick={() => refetch()}>
-          {t("productList.refresh")}
+        <ButtonSecondary
+          onClick={() => refetch()}
+          disabled={isFetching}
+        >
+          {isFetching ? (
+            <Spinner label={t("productList.refreshing")} />
+          ) : (
+            t("productList.refresh")
+          )}
         </ButtonSecondary>
       ) : null}
     </div>
@@ -176,18 +208,18 @@ export function ProductList() {
   }
 
   return (
-    <div className="space-y-3">
+    <div id="product-list" className="space-y-3">
       {actionError ? <ErrorBox message={actionError} /> : null}
       {products.map((product) => {
-        const checkPending =
-          pendingAction?.id === product.id && pendingAction.kind === "check";
-        const togglePending =
-          pendingAction?.id === product.id && pendingAction.kind === "toggle";
+        const checkPending = pendingCheckId === product.id;
+        const togglePending = pendingToggleId === product.id;
         const isConfirming = confirmingDeleteId === product.id;
         return (
           <Card
             key={product.id}
-            className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5"
+            id={`product-row-${product.id}`}
+            tabIndex={-1}
+            className="flex flex-col gap-4 p-4 outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ring)] sm:flex-row sm:items-center sm:justify-between sm:p-5"
           >
             <div className="flex min-w-0 gap-4">
               {product.imagePath ? (
@@ -221,7 +253,7 @@ export function ProductList() {
                     className={`block truncate text-base font-semibold tracking-tight transition-colors hover:text-[var(--accent)] ${
                       product.active
                         ? "text-stone-900 dark:text-stone-100"
-                        : "text-stone-400 dark:text-stone-500"
+                        : "text-stone-500 dark:text-stone-400"
                     }`}
                   >
                     {product.name ?? product.url}
@@ -231,8 +263,16 @@ export function ProductList() {
                       ? t("productList.active")
                       : t("productList.paused")}
                   </Badge>
+                  {product.lastCheckStatus === "failed" ? (
+                    <Badge
+                      tone="warning"
+                      title={product.lastCheckError ?? undefined}
+                    >
+                      {t("productList.checkFailed")}
+                    </Badge>
+                  ) : null}
                 </div>
-                <p className="truncate text-xs text-stone-400 dark:text-stone-500">
+                <p className="truncate text-xs text-stone-500 dark:text-stone-400">
                   {product.url}
                 </p>
                 <p className="text-sm text-stone-500 dark:text-stone-400">
@@ -242,14 +282,14 @@ export function ProductList() {
                         className={`text-base font-semibold tabular-nums ${
                           product.active
                             ? "text-stone-900 dark:text-stone-100"
-                            : "text-stone-400 dark:text-stone-500"
+                            : "text-stone-500 dark:text-stone-400"
                         }`}
                       >
                         {formatPrice(product.currentPrice, product.currency)}
                       </span>
                       {t("productList.checked")}
                       <span title={formatDateTime(product.lastCheckedAt)}>
-                        {formatRelativeTime(product.lastCheckedAt)}
+                        {formatRelativeTime(product.lastCheckedAt, lang)}
                       </span>
                     </>
                   ) : (
@@ -274,7 +314,7 @@ export function ProductList() {
                 disabled={checkPending || togglePending}
               >
                 {togglePending ? (
-                  <Spinner label="…" />
+                  <Spinner label={t("productList.updating")} />
                 ) : product.active ? (
                   t("productList.pause")
                 ) : (
@@ -352,6 +392,7 @@ const Lightbox = forwardRef<HTMLDivElement, LightboxProps>(function Lightbox(
   { imageId, alt, label, onClose },
   ref,
 ) {
+  const { t } = useI18n();
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
 
   // Move focus into the dialog on open; lock background scroll.
@@ -395,7 +436,7 @@ const Lightbox = forwardRef<HTMLDivElement, LightboxProps>(function Lightbox(
         type="button"
         onClick={onClose}
         className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-2xl text-white transition-colors hover:bg-white/20"
-        aria-label="Close"
+        aria-label={t("productList.closeLightbox")}
       >
         ✕
       </button>

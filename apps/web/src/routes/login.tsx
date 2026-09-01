@@ -25,15 +25,9 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const onSubmit = async (event: FormEvent) => {
-    event.preventDefault();
+  /** Shared by the initial submit and the resend button on the sent screen. */
+  const sendMagicLink = async (): Promise<boolean> => {
     setError(null);
-
-    if (!email.trim()) {
-      setError(t("login.emailEmpty"));
-      return;
-    }
-
     setIsSubmitting(true);
     try {
       const { error: authError } = await authClient.signIn.magicLink({
@@ -43,14 +37,35 @@ function LoginForm() {
 
       if (authError) {
         setError(authError.message ?? t("login.sendError"));
-        return;
+        return false;
       }
 
-      setSent(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("login.sendError"));
+      return true;
+    } catch {
+      setError(t("login.sendError"));
+      return false;
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const onSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+
+    if (!email.trim()) {
+      setError(t("login.emailEmpty"));
+      return;
+    }
+
+    if (await sendMagicLink()) {
+      setSent(true);
+    }
+  };
+
+  /** Actually re-sends the magic link (the address is kept in state). */
+  const onResend = async () => {
+    if (await sendMagicLink()) {
+      setSent(true);
     }
   };
 
@@ -60,9 +75,15 @@ function LoginForm() {
         <div className="rounded-lg border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700 dark:border-stone-800 dark:bg-stone-900/50 dark:text-stone-300">
           {t("login.sent", { email: email.trim() })}
         </div>
+        {error ? <ErrorBox message={error} /> : null}
         <div className="flex flex-col gap-2">
-          <Button type="button" onClick={() => setSent(false)} className="w-full">
-            {t("login.resend")}
+          <Button
+            type="button"
+            onClick={onResend}
+            disabled={isSubmitting}
+            className="w-full"
+          >
+            {isSubmitting ? t("login.sending") : t("login.resend")}
           </Button>
           <ButtonSecondary onClick={() => setSent(false)} className="w-full">
             {t("login.differentEmail")}
@@ -122,7 +143,7 @@ export function LoginPage() {
         </Card>
 
         <div className="flex flex-col items-center gap-2 text-center">
-          <p className="text-xs font-medium uppercase tracking-wide text-stone-400 dark:text-stone-500">
+          <p className="text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-stone-400">
             {t("login.projectLinks")}
           </p>
           <ProjectLinks className="justify-center" />

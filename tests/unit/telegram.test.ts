@@ -342,8 +342,8 @@ describe("sendTelegramText timeout", () => {
     vi.stubGlobal("fetch", spy);
     const errorSpy = vi.spyOn(logger, "error").mockImplementation(() => {});
 
-    // Must not throw to the caller.
-    await expect(sendTelegramText("123456", "hello")).resolves.toBeUndefined();
+    // Must not throw to the caller; reports the delivery failure as false.
+    await expect(sendTelegramText("123456", "hello")).resolves.toBe(false);
 
     expect(spy).toHaveBeenCalledTimes(1);
     expect(errorSpy).toHaveBeenCalledWith(

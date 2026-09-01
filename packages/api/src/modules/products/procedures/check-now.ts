@@ -45,7 +45,13 @@ export const checkProductNow = protectedProcedure
 
     return {
       success: true as const,
-      reason: "Price check completed",
+      // Honest summary: the RPC succeeded, but the check itself may have
+      // failed (transport, anti-bot, deadline) — the per-status `check`
+      // payload is the source of truth for the UI.
+      reason:
+        check.status === "failed"
+          ? "Price check failed"
+          : "Price check completed",
       check,
     };
   });

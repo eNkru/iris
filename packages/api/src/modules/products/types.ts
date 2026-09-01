@@ -87,6 +87,10 @@ export const productOutputSchema = z.object({
   currentPrice: z.number().nullable(),
   imagePath: z.string().nullable(),
   lastCheckedAt: z.date().nullable(),
+  /** Outcome of the most recent check; null = never checked (types.ts CheckPriceResult minus not_found). */
+  lastCheckStatus: z.enum(["changed", "unchanged", "unavailable", "failed"]).nullable(),
+  /** Failure detail when lastCheckStatus is "failed"; null otherwise. */
+  lastCheckError: z.string().nullable(),
   pollIntervalMinutes: z.number().int().nullable(),
   alertRules: alertRulesSchema,
   active: z.boolean(),

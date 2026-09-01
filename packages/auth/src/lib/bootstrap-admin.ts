@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@iris/database";
 import { countUsersInTx } from "@iris/database/drizzle/queries";
 import { user } from "@iris/database/drizzle/schema/auth";
-import { logger } from "@iris/utils";
+import { errorFields, logger } from "@iris/utils";
 
 /**
  * R2 — the first user to sign in becomes admin.
@@ -17,13 +17,47 @@ import { logger } from "@iris/utils";
  * granted), the second then reads count=2 and skips. This guarantees exactly
  * one admin and avoids the previous race where both saw count=2 and neither
  * was promoted (leaving zero admins).
+ *
+ * ## Failure isolation
+ *
+ * A throw inside the hook would propagate into better-auth and fail the very
+ * sign-up that triggered it. Since a failed bootstrap must also not silently
+ * leave zero admins, failures are retried briefly and then logged loudly —
+ * but NEVER rethrown (registration always wins over bootstrap).
  */
-export function bootstrapFirstUserAsAdmin(userId: string): void {
-  // drizzle's better-sqlite3 driver is synchronous: db.transaction(fn)
-  // delegates to better-sqlite3's native transaction(), which throws
-  // "Transaction function cannot return a promise" if fn is async / returns a
-  // Promise. So the callback must stay synchronous — use the sync execution
-  // terminals (.all()/.run()) and never `await` inside it.
+const BOOTSTRAP_ATTEMPTS = 3;
+const BOOTSTRAP_RETRY_DELAY_MS = 250;
+
+export async function bootstrapFirstUserAsAdmin(userId: string): Promise<void> {
+  for (let attempt = 1; attempt <= BOOTSTRAP_ATTEMPTS; attempt++) {
+    try {
+      grantAdminIfFirstUser(userId);
+      return;
+    } catch (error) {
+      logger.error("Admin bootstrap failed", {
+        userId,
+        attempt,
+        lastAttempt: attempt === BOOTSTRAP_ATTEMPTS,
+        ...errorFields(error),
+      });
+
+      if (attempt === BOOTSTRAP_ATTEMPTS) {
+        return;
+      }
+      // Bounded backoff: transient SQLITE_BUSY usually resolves within the
+      // driver's busy_timeout, this covers the tail.
+      await new Promise((resolve) => setTimeout(resolve, BOOTSTRAP_RETRY_DELAY_MS * attempt));
+    }
+  }
+}
+
+/**
+ * The count-then-grant transaction. better-sqlite3's native transaction()
+ * throws "Transaction function cannot return a promise" if fn is async /
+ * returns a Promise, so the callback must stay synchronous — use the sync
+ * execution terminals (.all()/.run()) and never `await` inside it.
+ */
+function grantAdminIfFirstUser(userId: string): void {
   db.transaction((tx) => {
     const userCount = countUsersInTx(tx);
 

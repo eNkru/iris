@@ -12,8 +12,34 @@ import { stat } from "node:fs/promises";
 import { auth } from "@iris/auth";
 import { getProductImageForUser } from "@iris/database";
 import { router } from "@iris/api/orpc/router";
-import { startScheduler, stopScheduler } from "@iris/prices";
-import { getEnv, logger } from "@iris/utils";
+import { getOrGenerateLogId } from "@iris/api/orpc/procedures";
+import { startScheduler, stopScheduler, activeCheckCount } from "@iris/prices";
+import { getEnv, logger, errorFields } from "@iris/utils";
+
+/**
+ * Process-level failure handlers, registered before any async work starts.
+ * This single Node process hosts the HTTP server, the oRPC layer and the
+ * price-check scheduler; since Node ≥15 an unhandled rejection crashes the
+ * process by default, taking the whole app down. Log both failure classes
+ * with full stack traces so post-mortems are possible:
+ * - `unhandledRejection`: a promise nobody awaited (e.g. background check
+ *   work that outlived its deadline and later failed). The process can keep
+ *   serving; log and continue.
+ * - `uncaughtException`: a synchronous error escaped every handler. State may
+ *   be inconsistent, so log and exit non-zero — the orchestrator restarts the
+ *   container. The logger writes synchronously, so the record survives exit.
+ */
+process.on("unhandledRejection", (reason) => {
+  logger.error("Unhandled promise rejection", errorFields(reason));
+});
+
+process.on("uncaughtException", (error) => {
+  logger.error("Uncaught exception; exiting", {
+    error: error.message,
+    stack: error.stack,
+  });
+  process.exit(1);
+});
 
 /**
  * Resolve the server directory. In CJS (esbuild production bundle),
@@ -70,14 +96,31 @@ app.use("*", async (c, next) => {
 const rpcHandler = new RPCHandler(router);
 
 app.on(["GET", "POST"], "/api/rpc/*", async (c) => {
+  // Resolve the request id ONCE here so the request log below and every
+  // procedure-level log (logIdMiddleware) share the same id. A client may
+  // propagate its own `x-log-id` for distributed tracing.
+  const logId = getOrGenerateLogId(c.req.raw.headers);
+  const startedAt = Date.now();
+
   const { matched, response } = await rpcHandler.handle(c.req.raw, {
     prefix: "/api/rpc",
-    context: { headers: c.req.raw.headers },
+    context: { headers: c.req.raw.headers, logId },
   });
 
   if (!matched) {
     return c.body("Not found", 404);
   }
+
+  // One structured line per RPC request (logging.md): path, status, latency
+  // and the request id that also appears on any error log — this is the
+  // backbone for tracing a failing request across its log entries.
+  logger.info("RPC request", {
+    logId,
+    method: c.req.method,
+    path: c.req.path,
+    status: response.status,
+    durationMs: Date.now() - startedAt,
+  });
 
   return response;
 });
@@ -233,15 +276,11 @@ function startSchedulerSafely(): void {
   try {
     startScheduler({
       onError: (error: unknown) => {
-        logger.error("Scheduler tick error", {
-          error: error instanceof Error ? error.message : String(error),
-        });
+        logger.error("Scheduler tick error", errorFields(error));
       },
     });
   } catch (error) {
-    logger.error("Failed to start scheduler", {
-      error: error instanceof Error ? error.message : String(error),
-    });
+    logger.error("Failed to start scheduler", errorFields(error));
   }
 }
 
@@ -256,11 +295,12 @@ const server = serve(
 );
 
 /**
- * Graceful shutdown: stop the scheduler loop and close the HTTP server.
- * Mirrors the `onClose()` pattern from `instrumentation.ts`. A hard deadline
- * (`SHUTDOWN_FORCE_EXIT_MS`) force-exits the process if `server.close()` is
- * stuck waiting on a hung in-flight connection — the orchestrator would
- * eventually SIGKILL, but an explicit timeout gives a cleaner, faster exit.
+ * Graceful shutdown: stop the scheduler loop, drain in-flight price checks,
+ * then close the HTTP server. Mirrors the `onClose()` pattern from
+ * `instrumentation.ts`. A hard deadline (`SHUTDOWN_FORCE_EXIT_MS`) force-exits
+ * the process if draining or `server.close()` is stuck — the orchestrator
+ * would eventually SIGKILL, but an explicit timeout gives a cleaner, faster
+ * exit.
  */
 function shutdown(): void {
   stopScheduler();
@@ -273,11 +313,31 @@ function shutdown(): void {
     process.exit(1);
   }, forceExitMs);
 
-  server.close(() => {
-    clearTimeout(forceExitTimer);
-    logger.info("Server stopped");
-    process.exit(0);
-  });
+  // Stop accepting new work, then let running checks finish (bounded by the
+  // force-exit timer) so a deploy does not cut a check mid-transaction.
+  const inflight = activeCheckCount();
+  if (inflight > 0) {
+    logger.info("Draining in-flight price checks before shutdown", { inflight });
+  }
+  void drainInflightChecks()
+    .catch((error: unknown) => {
+      logger.error("Error while draining in-flight checks", errorFields(error));
+    })
+    .then(() => {
+      server.close(() => {
+        clearTimeout(forceExitTimer);
+        logger.info("Server stopped");
+        process.exit(0);
+      });
+    });
+}
+
+/** Polls the single-flight registry until all running checks settle. */
+async function drainInflightChecks(): Promise<void> {
+  const pollMs = 200;
+  while (activeCheckCount() > 0) {
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
 }
 
 process.on("SIGTERM", shutdown);

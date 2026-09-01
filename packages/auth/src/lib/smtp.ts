@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
-import { getEnv, logger } from "@iris/utils";
+import { getEnv, logger, errorFields } from "@iris/utils";
 
 let transporter: Transporter | null = null;
 
@@ -64,7 +64,7 @@ export async function sendMagicLinkEmail(params: SendMagicLinkParams): Promise<v
       to: params.email,
       from: env.SMTP_FROM,
       subject: "Sign in to Iris",
-      error: error instanceof Error ? error.message : String(error),
+      ...errorFields(error),
     });
     throw error;
   }

@@ -140,7 +140,9 @@ describe("dispatchPriceAlert", () => {
     mockDbSelect.mockReset();
     mockGetChannel.mockReset();
     mockTelegramSend.mockReset();
-    mockTelegramSend.mockResolvedValue(undefined);
+    // Adapters report honest delivery: default to a successful send (true);
+    // tests override with false/rejections for failure paths.
+    mockTelegramSend.mockResolvedValue(true);
     // Make `getChannel("telegram")` resolve to the mock telegram adapter by
     // default; individual tests can override this.
     mockGetChannel.mockImplementation((type: ChannelType) =>
@@ -203,11 +205,12 @@ describe("dispatchPriceAlert", () => {
     const result = await dispatchPriceAlert(NOTIFICATION);
 
     expect(mockTelegramSend).toHaveBeenCalledTimes(1);
-    // The unregistered `email` row short-circuits to `Promise.resolve()`
-    // inside dispatch.ts (lines 78-79) rather than throwing, so
-    // `Promise.allSettled` records it as fulfilled. `total` still includes
-    // both rows — the caller learns about the gap via the warning log.
-    expect(result).toEqual({ sent: 2, total: 2 });
+    // The unregistered `email` row short-circuits to `Promise.resolve(false)`
+    // inside dispatch.ts — with honest delivery accounting it is NOT counted
+    // as sent (it never attempted delivery). `total` still includes both
+    // rows — the caller learns about the gap via the warning log and the
+    // sent/total delta.
+    expect(result).toEqual({ sent: 1, total: 2 });
     expect(warnSpy).toHaveBeenCalledWith(
       "No notification adapter registered for channel type",
       expect.objectContaining({

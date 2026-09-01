@@ -278,16 +278,19 @@ describe("AdminSettingsSection bot token field", () => {
     ).toBeInTheDocument();
   });
 
-  it("on Clear click: sends telegramBotToken: null after confirm", async () => {
+  it("on Clear click: sends telegramBotToken: null after the second confirm click", async () => {
     const user = userEvent.setup();
     setLoadedSettings({ telegramBotToken: "•••••xxxx" });
-    // jsdom `window.confirm` defaults to true; keep it explicit.
-    vi.spyOn(window, "confirm").mockReturnValue(true);
 
     renderSection();
 
     await screen.findByLabelText("Bot Token");
+    // In-app two-step confirm: first click arms the confirmation, the second
+    // click (on the confirm button) executes the clear.
     await user.click(screen.getByRole("button", { name: "Clear token" }));
+    await user.click(
+      screen.getByRole("button", { name: "Clear the stored token?" }),
+    );
 
     await waitFor(() => {
       expect(mutateAsync).toHaveBeenCalledTimes(1);
@@ -297,17 +300,16 @@ describe("AdminSettingsSection bot token field", () => {
     );
   });
 
-  it("on Clear click: does not send when confirm is dismissed", async () => {
+  it("on Clear click: does not send until the confirmation is clicked", async () => {
     const user = userEvent.setup();
     setLoadedSettings({ telegramBotToken: "•••••xxxx" });
-    vi.spyOn(window, "confirm").mockReturnValue(false);
 
     renderSection();
 
     await screen.findByLabelText("Bot Token");
     await user.click(screen.getByRole("button", { name: "Clear token" }));
 
-    // The confirm was dismissed; no mutation should fire.
+    // Armed but not confirmed; no mutation should fire.
     expect(mutateAsync).not.toHaveBeenCalled();
   });
 });

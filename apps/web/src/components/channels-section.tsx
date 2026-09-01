@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useI18n } from "../lib/i18n";
+import { useI18n, LANGUAGE_OPTIONS } from "../lib/i18n";
+import { hasValidationIssue } from "../lib/orpc-validation";
 import {
   useChannels,
   useCreateChannel,
@@ -24,15 +25,11 @@ import {
  * user; chat id + notification message language are the configurable fields.
  */
 
-/** Notification language options for the add-form / per-row selector. */
-const LANGUAGE_OPTIONS = [
-  { value: "en", label: "EN" },
-  { value: "zh", label: "中文" },
-] as const;
+/** Notification language options come from lib/i18n.tsx (shared). */
 
 export function ChannelsSection() {
   const { t } = useI18n();
-  const { data, isLoading, isError, error } = useChannels();
+  const { data, isLoading, isError } = useChannels();
   const createChannel = useCreateChannel();
   const updateChannel = useUpdateChannel();
   const deleteChannel = useDeleteChannel();
@@ -65,7 +62,12 @@ export function ChannelsSection() {
       setChatId("");
       setLanguage("en");
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : t("channels.addError"));
+      // Point at the chat-id field when the server rejected the input.
+      setErrorMessage(
+        hasValidationIssue(err, "chatId")
+          ? t("channels.chatIdInvalid")
+          : t("channels.addError"),
+      );
     }
   };
 
@@ -74,8 +76,8 @@ export function ChannelsSection() {
     setErrorMessage(null);
     try {
       await deleteChannel.mutateAsync(id);
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : t("channels.deleteError"));
+    } catch {
+      setErrorMessage(t("channels.deleteError"));
     } finally {
       setDeletingId(null);
     }
@@ -91,7 +93,7 @@ export function ChannelsSection() {
     <div className="space-y-4">
       {isLoading ? <Spinner label={t("channels.loading")} /> : null}
       {isError ? (
-        <ErrorBox message={error instanceof Error ? error.message : t("channels.loadError")} />
+        <ErrorBox message={t("channels.loadError")} />
       ) : null}
 
       {channels.length > 0 ? (
@@ -123,7 +125,7 @@ export function ChannelsSection() {
                         { id: channel.id, language: next },
                         {
                           onSettled: () => setUpdatingId(null),
-                          onError: (err) => setErrorMessage(err.message),
+                          onError: () => setErrorMessage(t("channels.updateError")),
                         },
                       );
                     }}
@@ -135,7 +137,7 @@ export function ChannelsSection() {
                         { id: channel.id, enabled: !channel.enabled },
                         {
                           onSettled: () => setUpdatingId(null),
-                          onError: (err) => setErrorMessage(err.message),
+                          onError: () => setErrorMessage(t("channels.updateError")),
                         },
                       );
                     }}
@@ -171,7 +173,7 @@ export function ChannelsSection() {
             onChange={(e) => setChatId(e.target.value)}
             disabled={createChannel.isPending}
           />
-          <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
+          <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
             {t("channels.chatIdHint")}
             <code className="ml-1 rounded bg-stone-100 px-1 dark:bg-stone-800">123456789</code>.
           </p>

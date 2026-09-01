@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
+import { ORPCError } from "@orpc/client";
 import { useCheckNow, useProduct } from "../hooks/use-products";
 import { AppShell } from "../components/app-shell";
 import { AuthGate } from "../components/auth-gate";
@@ -18,7 +19,7 @@ import {
 } from "../components/ui";
 
 export function ProductDetailPage() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const params = useParams<{ id: string }>();
   const id = params?.id ?? "";
   const { data, isLoading, isError, error } = useProduct(id);
@@ -52,12 +53,20 @@ export function ProductDetailPage() {
   }
 
   if (isError || !data) {
+    // A NOT_FOUND from the API means the id is unknown (deleted elsewhere,
+    // stale link, or a hand-edited URL) — show the friendly not-found page
+    // copy instead of the generic load-error box with a raw message.
+    const notFound = error instanceof ORPCError && error.code === "NOT_FOUND";
     return (
       <AuthGate>
         <AppShell>
           <ErrorBox
             message={
-              error instanceof Error ? error.message : t("detail.loadError")
+              notFound
+                ? t("notFound.title")
+                : error instanceof Error
+                  ? error.message
+                  : t("detail.loadError")
             }
           />
           <div className="mt-4">
@@ -101,7 +110,7 @@ export function ProductDetailPage() {
                 >
                   {product.name ?? product.url}
                 </h1>
-                <p className="truncate text-sm text-stone-400 dark:text-stone-500">
+                <p className="truncate text-sm text-stone-500 dark:text-stone-400">
                   {product.url}
                 </p>
               </div>
@@ -123,9 +132,20 @@ export function ProductDetailPage() {
             )}
             <span title={formatDateTime(product.lastCheckedAt)}>
               {t("detail.lastChecked", {
-                time: formatRelativeTime(product.lastCheckedAt),
+                time: formatRelativeTime(product.lastCheckedAt, lang),
               })}
             </span>
+            {/* Persisted last-check failure (scheduler checks included). Hidden
+                while a fresh manual-check result is displayed below so the
+                same failure is not shown twice. */}
+            {product.lastCheckStatus === "failed" && !checkNow.data ? (
+              <span className="text-amber-700 dark:text-amber-300">
+                {t("detail.checkFailed", {
+                  reason:
+                    product.lastCheckError ?? t("detail.checkFailedUnknown"),
+                })}
+              </span>
+            ) : null}
           </div>
 
           <div className="pt-1">
@@ -136,7 +156,7 @@ export function ProductDetailPage() {
                 checkNow.mutate(
                   { id: product.id },
                   {
-                    onError: (err) => setCheckError(err.message),
+                    onError: () => setCheckError(t("detail.checkError")),
                   },
                 );
               }}

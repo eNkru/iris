@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@iris/database";
 import { alertChannels } from "@iris/database/drizzle/schema/sqlite";
-import { logger } from "@iris/utils";
+import { logger, errorFields } from "@iris/utils";
 import { getChannel, registerChannel } from "./channel";
 import { telegramChannel } from "./telegram";
 import type { PriceAlertNotification } from "./format";
@@ -75,21 +75,26 @@ export async function dispatchPriceAlert(
           userId: notification.userId,
           productId: notification.productId,
         });
-        return Promise.resolve();
+        // A channel without an adapter was NOT delivered — resolve false so
+        // it is not counted as sent (it never even attempted delivery).
+        return Promise.resolve(false);
       }
       return adapter.send(notification, asRecord(channel.config));
     }),
   );
 
-  const sent = results.filter((result) => result.status === "fulfilled").length;
+  // Only a fulfilled promise resolving `true` means the message actually
+  // reached the channel; adapters report false for skipped/failed sends.
+  const sent = results.filter(
+    (result) => result.status === "fulfilled" && result.value === true,
+  ).length;
 
   for (const result of results) {
     if (result.status === "rejected") {
       logger.error("Price alert dispatch failed", {
         userId: notification.userId,
         productId: notification.productId,
-        error:
-          result.reason instanceof Error ? result.reason.message : String(result.reason),
+        ...errorFields(result.reason),
       });
     }
   }

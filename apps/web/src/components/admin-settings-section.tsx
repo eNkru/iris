@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+import { useTransientFlag } from "../hooks/use-transient-flag";
+import { useOneShotSeed } from "../hooks/use-one-shot-seed";
 import { useGlobalSettings, useUpdateGlobalSettings } from "../hooks/use-settings";
 import { useI18n } from "../lib/i18n";
+import { hasValidationIssue } from "../lib/orpc-validation";
 import { Button, ErrorBox, Input, Label, Spinner } from "./ui";
 
 /**
@@ -20,30 +23,19 @@ export function AdminSettingsSection() {
   const [pollInterval, setPollInterval] = useState("");
   const [botToken, setBotToken] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [hasLoaded, setHasLoaded] = useState(false);
-  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [confirmingClearToken, setConfirmingClearToken] = useState(false);
+  const [savedFlash, triggerSavedFlash] = useTransientFlag();
 
-  // Transient "Saved." feedback (R8): clears after ~3s.
-  useEffect(() => {
-    if (savedAt === null) {
-      return;
-    }
-    const timer = setTimeout(() => setSavedAt(null), 3000);
-    return () => clearTimeout(timer);
-  }, [savedAt]);
-
-  useEffect(() => {
-    if (data && !hasLoaded) {
-      setPollInterval(data.settings.pollIntervalDefaultMinutes.toString());
-      setBotToken("");
-      setHasLoaded(true);
-    }
-  }, [data, hasLoaded]);
+  // Seed the form once settings arrive from the server (never re-seeds on
+  // later refetches, so user edits survive background refreshes).
+  useOneShotSeed(data, (d) => {
+    setPollInterval(d.settings.pollIntervalDefaultMinutes.toString());
+    setBotToken("");
+  });
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setErrorMessage(null);
-    setSavedAt(null);
 
     const parsedInterval = Number(pollInterval);
     if (!Number.isInteger(parsedInterval) || parsedInterval < 1) {
@@ -57,10 +49,13 @@ export function AdminSettingsSection() {
         telegramBotToken: botToken.trim() === "" ? undefined : botToken.trim(),
       });
       setBotToken("");
-      setSavedAt(Date.now());
+      triggerSavedFlash();
     } catch (err) {
+      // Point at the interval field when the server rejected the input.
       setErrorMessage(
-        err instanceof Error ? err.message : t("adminSettings.saveError"),
+        hasValidationIssue(err, "pollIntervalDefaultMinutes")
+          ? t("validation.pollInterval")
+          : t("adminSettings.saveError"),
       );
     }
   };
@@ -89,12 +84,11 @@ export function AdminSettingsSection() {
               required
               value={pollInterval}
               onChange={(e) => {
-                setSavedAt(null);
                 setPollInterval(e.target.value);
               }}
               disabled={updateGlobalSettings.isPending}
             />
-            <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
+            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
               {t("adminSettings.intervalHint")}
             </p>
           </div>
@@ -108,12 +102,11 @@ export function AdminSettingsSection() {
               placeholder={t("adminSettings.botTokenPlaceholder")}
               value={botToken}
               onChange={(e) => {
-                setSavedAt(null);
                 setBotToken(e.target.value);
               }}
               disabled={updateGlobalSettings.isPending}
             />
-            <p className="mt-1 text-xs text-stone-400 dark:text-stone-500">
+            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
               {data?.settings.telegramBotToken
                 ? t("adminSettings.botTokenStored", {
                     token: data.settings.telegramBotToken,
@@ -121,40 +114,52 @@ export function AdminSettingsSection() {
                 : t("adminSettings.botTokenNone")}
             </p>
             {data?.settings.telegramBotToken ? (
-              <button
-                type="button"
-                className="mt-1 text-xs font-medium text-stone-500 underline transition-colors hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:text-stone-400 dark:hover:text-red-400"
-                disabled={updateGlobalSettings.isPending}
-                onClick={async () => {
-                  if (
-                    !window.confirm(t("adminSettings.clearTokenConfirm"))
-                  ) {
-                    return;
-                  }
-                  setErrorMessage(null);
-                  setSavedAt(null);
-                  try {
-                    await updateGlobalSettings.mutateAsync({
-                      telegramBotToken: null,
-                    });
-                    setBotToken("");
-                    setSavedAt(Date.now());
-                  } catch (err) {
-                    setErrorMessage(
-                      err instanceof Error
-                        ? err.message
-                        : t("adminSettings.saveError"),
-                    );
-                  }
-                }}
-              >
-                {t("adminSettings.clearToken")}
-              </button>
+              confirmingClearToken ? (
+                <span className="mt-1 flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-red-700 underline transition-colors hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400"
+                    disabled={updateGlobalSettings.isPending}
+                    onClick={async () => {
+                      setConfirmingClearToken(false);
+                      setErrorMessage(null);
+                      try {
+                        await updateGlobalSettings.mutateAsync({
+                          telegramBotToken: null,
+                        });
+                        setBotToken("");
+                        triggerSavedFlash();
+                      } catch {
+                        setErrorMessage(t("adminSettings.saveError"));
+                      }
+                    }}
+                  >
+                    {t("adminSettings.clearTokenConfirm")}
+                  </button>
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-stone-500 underline transition-colors hover:text-stone-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-stone-400 dark:hover:text-stone-200"
+                    disabled={updateGlobalSettings.isPending}
+                    onClick={() => setConfirmingClearToken(false)}
+                  >
+                    {t("productList.cancel")}
+                  </button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="mt-1 text-xs font-medium text-stone-500 underline transition-colors hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50 dark:text-stone-400 dark:hover:text-red-400"
+                  disabled={updateGlobalSettings.isPending}
+                  onClick={() => setConfirmingClearToken(true)}
+                >
+                  {t("adminSettings.clearToken")}
+                </button>
+              )
             ) : null}
           </div>
 
           {errorMessage ? <ErrorBox message={errorMessage} /> : null}
-          {savedAt !== null ? (
+          {savedFlash ? (
             <p className="text-sm text-emerald-700 dark:text-emerald-400">
               {t("adminSettings.saved")}
             </p>
