@@ -270,6 +270,16 @@ app.get("*", async (c, next) => {
  */
 function startSchedulerSafely(): void {
   if (process.env.NODE_ENV !== "production") {
+    // Intentionally skipped in dev (HMR would double-tick). But a production
+    // deploy that accidentally inherits NODE_ENV=development (e.g. a stale
+    // .env with no compose override) would silently disable auto-refresh —
+    // prices go stale with the container still "healthy". Log loudly so this
+    // is diagnosable instead of a 5-day mystery.
+    logger.warn(
+      "Scheduler not started: NODE_ENV is not 'production' — automatic price refresh is disabled. " +
+        "Set NODE_ENV=production for deployments.",
+      { nodeEnv: process.env.NODE_ENV ?? null },
+    );
     return;
   }
 

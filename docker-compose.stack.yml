@@ -43,8 +43,18 @@ services:
     container_name: iris
     restart: unless-stopped
     # All iris env comes from .env (compose auto-injects every KEY=VALUE).
-    # Make sure .env has: NODE_ENV, APP_URL, ARGUS_BASE_URL=http://argus:8000,
+    # Make sure .env has: APP_URL, ARGUS_BASE_URL=http://argus:8000,
     # ARGUS_API_TOKEN, BETTER_AUTH_SECRET, SMTP_*, TELEGRAM_BOT_TOKEN, etc.
+    #
+    # NODE_ENV is pinned here, NOT read from .env: the in-process price
+    # scheduler (apps/web/server.ts:startSchedulerSafely) only starts when
+    # NODE_ENV=production, and the shipped .env/.env.example default to
+    # "development" (correct for `pnpm dev`). If the stack inherited that
+    # default, the container would boot healthy and serve the UI while the
+    # auto-refresh loop never started — prices silently go stale. Pinning here
+    # removes that footgun regardless of what .env says.
+    environment:
+      NODE_ENV: production
     env_file:
       - .env
     depends_on:
