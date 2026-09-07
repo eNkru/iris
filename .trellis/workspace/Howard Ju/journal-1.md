@@ -691,3 +691,36 @@ Diagnosed the 'Something went wrong' crash on the product details page (React er
 ### Next Steps
 
 - None - task complete
+
+
+## Session 19: Fix scheduler auto-refresh disabled by NODE_ENV in stack deploy
+
+**Date**: 2026-09-07
+**Task**: Fix scheduler auto-refresh disabled by NODE_ENV in stack deploy
+**Branch**: `main`
+
+### Summary
+
+Iris prices hadn't auto-refreshed for 5 days. Root cause: the in-process scheduler only starts when NODE_ENV=production (apps/web/server.ts:startSchedulerSafely), but docker-compose.stack.yml injected env via env_file:.env with no NODE_ENV override, and the shipped .env defaults to NODE_ENV=development — so the NAS container booted healthy and served the UI while the scheduler silently never ticked. Verified schema/due-query logic (unix-seconds integer vs unixepoch()) was correct; the bug was purely the env gating. Fix: pin NODE_ENV=production in docker-compose.stack.yml (mirrors docker-compose.yml) and make the dev-skip path log a warn instead of returning silently. Noted operational fix for the NAS (.env NODE_ENV=production + recreate).
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fa7a880` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
