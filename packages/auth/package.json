@@ -22,13 +22,12 @@
     "@iris/database": "workspace:*",
     "@iris/utils": "workspace:*",
     "better-auth": "^1.0.0",
-    "drizzle-orm": "^0.44.0",
-    "nodemailer": "^6.9.0",
+    "drizzle-orm": "^0.45.2",
+    "nodemailer": "^10.0.0",
     "react": "^19.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "@types/nodemailer": "^6.4.0",
     "@types/react": "^19.0.0",
     "eslint": "^9.0.0",
     "typescript": "^5.6.0",

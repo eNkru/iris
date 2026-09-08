@@ -724,3 +724,36 @@ Iris prices hadn't auto-refreshed for 5 days. Root cause: the in-process schedul
 ### Next Steps
 
 - None - task complete
+
+
+## Session 20: Patch all known pnpm audit vulnerabilities
+
+**Date**: 2026-09-08
+**Task**: Patch all known pnpm audit vulnerabilities
+**Branch**: `fix/security-vulnerabilities`
+
+### Summary
+
+Found and fixed all 17 vulnerabilities (8 high, 8 moderate, 1 low) reported by pnpm audit. Bumped direct deps: drizzle-orm ^0.44.0->^0.45.2 (SQL injection) across api/auth/database/prices, nodemailer ^6.9.0->^10.0.0 with @types/nodemailer dropped (v10 ships bundled types) fixing 7 SMTP/DoS/TLS advisories. Added transitive overrides to pnpm-workspace.yaml (pnpm 11 ignores pnpm.overrides in package.json): postcss ^8.5.23, sharp ^0.35.0, nanoid ^3.3.18, js-yaml ^4.3.1, esbuild ^0.25.3 (dedupes stale 0.18.20 from drizzle-kit's @esbuild-kit). Verified: pnpm audit clean, pnpm -r typecheck passes all 6 projects, drizzle-kit generate works with esbuild override. Pushed to origin/fix/security-vulnerabilities.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3be53fe` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
