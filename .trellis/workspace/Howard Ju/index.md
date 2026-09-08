@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 19
-- **Last Active**: 2026-09-07
+- **Total Sessions**: 20
+- **Last Active**: 2026-09-08
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~726 | Active |
+| `journal-1.md` | ~759 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 20 | 2026-09-08 | Patch all known pnpm audit vulnerabilities | `3be53fe` | `fix/security-vulnerabilities` |
 | 19 | 2026-09-07 | Fix scheduler auto-refresh disabled by NODE_ENV in stack deploy | `fa7a880` | `main` |
 | 18 | 2026-08-31 | fix(web): break infinite render loop in ProductDetailPage | `d04086d` | `fix/product-detail-checknow-reset-loop` |
 | 17 | 2026-08-26 | Batch of 10 low-priority fixes (single PR #45) | `985c684`, `405d619`, `0207cd6`, `07b6292`, `605c2f5`, `9c6c556`, `5c33dec`, `8941ff0`, `a9f3bb2`, `f002cd1` | `main` |
