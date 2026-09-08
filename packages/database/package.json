@@ -27,7 +27,7 @@
   "dependencies": {
     "@iris/utils": "workspace:*",
     "better-sqlite3": "^12.4.1",
-    "drizzle-orm": "^0.44.0"
+    "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

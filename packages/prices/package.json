@@ -19,7 +19,7 @@
   "dependencies": {
     "@iris/database": "workspace:*",
     "@iris/utils": "workspace:*",
-    "drizzle-orm": "^0.44.0",
+    "drizzle-orm": "^0.45.2",
     "p-limit": "^6.0.0",
     "zod": "^4.0.0"
   },
