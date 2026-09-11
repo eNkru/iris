@@ -757,3 +757,36 @@ Found and fixed all 17 vulnerabilities (8 high, 8 moderate, 1 low) reported by p
 ### Next Steps
 
 - None - task complete
+
+
+## Session 21: ponytail-audit: apply dedupe + stdlib + drop dotenv cuts
+
+**Date**: 2026-09-11
+**Task**: ponytail-audit: apply dedupe + stdlib + drop dotenv cuts
+**Branch**: `refactor/ponytail-audit-cuts`
+
+### Summary
+
+Repo-wide over-engineering audit; applied 5 of 6 ranked findings on branch refactor/ponytail-audit-cuts: (1) stdlib base64DecodedLength -> Buffer.byteLength; (2) dedupe sleep across retry/extract-price; (3) dedupe asRecord -> @iris/utils/lib/objects; (4) native dotenv -> process.loadEnvFile, drop dotenv dep, engines.node>=20.12; (6) consolidate formatRelativeTime -> @iris/utils/lib/format (Intl); web keeps em-dash wrapper, summary test updated to Intl output. Left finding #5 (NotificationChannel registry) as intentional R11/R12 extensibility. Net -82 lines, -2 deps. Opened PR #51. Gates green: typecheck, lint, 190 tests, vite build, esbuild server/migrate bundles.
+
+### Main Changes
+
+- Detailed change bullets were not supplied; see the summary above.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `784a8a1` | (see git log) |
+
+### Testing
+
+- Validation was not recorded for this session.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
