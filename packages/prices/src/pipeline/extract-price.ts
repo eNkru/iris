@@ -1,7 +1,7 @@
 import pLimit from "p-limit";
 import { z } from "zod";
 import { getEnv, logger } from "@iris/utils";
-import { backoffDelayMs } from "./retry";
+import { backoffDelayMs, sleep } from "./retry";
 
 /**
  * Product-price extraction via the standalone argus service's
@@ -359,11 +359,5 @@ export async function extractPrice(
     }
 
     return { kind: "error", message: "Page fetch failed" };
-  });
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
   });
 }

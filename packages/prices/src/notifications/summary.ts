@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@iris/database";
 import { alertChannels, products } from "@iris/database/drizzle/schema/sqlite";
-import { logger, type Language } from "@iris/utils";
+import { formatRelativeTime, logger, type Language } from "@iris/utils";
 import { formatPriceGrouped, formatTelegramLink } from "./format";
 import { sendTelegramText } from "./telegram";
 
@@ -30,34 +30,6 @@ export interface ProductSummaryResult {
   sent: number;
   /** Number of products included in the summary. */
   productsCount: number;
-}
-
-/**
- * Relative time (e.g. "2h ago") for a nullable date. Server-side equivalent of
- * the client helper — date math only, kept here to avoid sharing client UI
- * code server-side.
- */
-export function formatRelativeTime(date: Date | null, lang: Language = "en"): string {
-  if (date === null) {
-    return lang === "zh" ? "从未" : "never";
-  }
-  const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
-  if (seconds < 60) {
-    return lang === "zh" ? "刚刚" : "just now";
-  }
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) {
-    return lang === "zh" ? `${minutes}分钟前` : `${minutes}m ago`;
-  }
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    return lang === "zh" ? `${hours}小时前` : `${hours}h ago`;
-  }
-  const days = Math.floor(hours / 24);
-  if (days < 7) {
-    return lang === "zh" ? `${days}天前` : `${days}d ago`;
-  }
-  return date.toLocaleDateString();
 }
 
 /** Minimum fields a product needs to be summarized. */

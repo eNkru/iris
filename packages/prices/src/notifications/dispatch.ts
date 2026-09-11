@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@iris/database";
 import { alertChannels } from "@iris/database/drizzle/schema/sqlite";
-import { logger, errorFields } from "@iris/utils";
+import { asRecord, logger, errorFields } from "@iris/utils";
 import { getChannel, registerChannel } from "./channel";
 import { telegramChannel } from "./telegram";
 import type { PriceAlertNotification } from "./format";
@@ -24,18 +24,6 @@ export function registerDefaultChannels(): void {
 export interface DispatchResult {
   sent: number;
   total: number;
-}
-
-/**
- * Convert an arbitrary DB JSONB value into the `Record<string, unknown>` the
- * channel adapters expect. Malformed configs degrade to an empty record and
- * the adapter logs a helpful warning (no type assertions without validation).
- */
-function asRecord(value: unknown): Record<string, unknown> {
-  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
-  }
-  return {};
 }
 
 /**

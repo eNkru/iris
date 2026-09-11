@@ -1,13 +1,16 @@
-import { config as loadDotenv } from "dotenv";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { defineConfig } from "drizzle-kit";
 
 // drizzle-kit runs from packages/database; load the repo-root `.env` so
 // DATABASE_PATH is available to `migrate`/`studio` (generate is offline).
-// dotenv does NOT override existing process.env by default, so a value set
+// process.loadEnvFile does NOT override existing process.env, so a value set
 // by the shell/compose always wins over the `.env` file.
-loadDotenv({ path: path.resolve(process.cwd(), "../../.env") });
+try {
+  process.loadEnvFile(path.resolve(process.cwd(), "../../.env"));
+} catch {
+  // .env absent or process.loadEnvFile unavailable (Node <20.12).
+}
 
 // Resolve the database URL the same way the runtime client does. drizzle-kit
 // runs with cwd = packages/database, so a RELATIVE DATABASE_PATH

@@ -7,7 +7,9 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./enum-types": "./src/lib/enum-types.ts"
+    "./enum-types": "./src/lib/enum-types.ts",
+    "./format": "./src/lib/format.ts",
+    "./objects": "./src/lib/objects.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
