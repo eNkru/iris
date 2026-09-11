@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@iris/database";
 import { alertChannels, products } from "@iris/database/drizzle/schema/sqlite";
-import { formatRelativeTime, logger, type Language } from "@iris/utils";
+import { logger, type Language } from "@iris/utils";
 import { formatPriceGrouped, formatTelegramLink } from "./format";
 import { sendTelegramText } from "./telegram";
 
@@ -83,6 +83,21 @@ const summaryText: Record<
 };
 
 /**
+ * Locale-aware absolute date/time for the per-card "checked" timestamp. A
+ * snapshot message wants a precise instant, not vague relative phrasing
+ * ("6 days ago") that becomes ambiguous past a day or two.
+ */
+function formatCheckedAt(date: Date | null, lang: Language): string {
+  if (date === null) {
+    return lang === "zh" ? "从未" : "never";
+  }
+  return new Intl.DateTimeFormat(lang === "zh" ? "zh-CN" : "en", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
+}
+
+/**
  * Build a Telegram summary message from the user's tracked products
  * (parse_mode "HTML"): bold clickable product names, grouped prices, emoji
  * status markers, and one card per product. `lang` selects the localized
@@ -114,7 +129,7 @@ export function formatProductSummaryMessage(
       number,
       name,
       price,
-      `${status} · ${txt.checked.replace("{time}", formatRelativeTime(item.lastCheckedAt, lang))}`,
+      `${status} · ${txt.checked.replace("{time}", formatCheckedAt(item.lastCheckedAt, lang))}`,
     ].join("\n");
   });
 
