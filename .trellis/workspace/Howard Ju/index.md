@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 20
-- **Last Active**: 2026-09-08
+- **Total Sessions**: 21
+- **Last Active**: 2026-09-11
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~759 | Active |
+| `journal-1.md` | ~792 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 21 | 2026-09-11 | ponytail-audit: apply dedupe + stdlib + drop dotenv cuts | `784a8a1` | `refactor/ponytail-audit-cuts` |
 | 20 | 2026-09-08 | Patch all known pnpm audit vulnerabilities | `3be53fe` | `fix/security-vulnerabilities` |
 | 19 | 2026-09-07 | Fix scheduler auto-refresh disabled by NODE_ENV in stack deploy | `fa7a880` | `main` |
 | 18 | 2026-08-31 | fix(web): break infinite render loop in ProductDetailPage | `d04086d` | `fix/product-detail-checknow-reset-loop` |

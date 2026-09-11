@@ -87,6 +87,10 @@ export default defineConfig({
         replacement: resolve(__dirname, "../../packages/utils/src/lib/enum-types.ts"),
       },
       {
+        find: "@iris/utils/format",
+        replacement: resolve(__dirname, "../../packages/utils/src/lib/format.ts"),
+      },
+      {
         find: "@iris/utils",
         replacement: resolve(__dirname, "../../packages/utils/src/index.ts"),
       },

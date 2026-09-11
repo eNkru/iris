@@ -33,6 +33,7 @@ export default defineConfig({
       // `@iris/utils` / `@iris/database`. `test.resolve.alias` is not applied to those.
       "@iris/prices/pipeline": resolve(__dirname, "packages/prices/src/pipeline/index.ts"),
       "@iris/prices": resolve(__dirname, "packages/prices/src/index.ts"),
+      "@iris/utils/format": resolve(__dirname, "packages/utils/src/lib/format.ts"),
       "@iris/utils": resolve(__dirname, "packages/utils/src/index.ts"),
       // More-specific aliases MUST come before the bare package alias — Vite
       // resolves aliases by longest-prefix match, so a subpath import like

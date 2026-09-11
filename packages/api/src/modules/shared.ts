@@ -1,4 +1,5 @@
 import { z } from "zod";
+export { asRecord } from "@iris/utils";
 
 /**
  * Standard "operation result" output shape (shared/typescript.md — every API
@@ -27,14 +28,3 @@ export function toNumber(value: string): number {
   return Number(value);
 }
 
-/**
- * Convert an arbitrary DB JSONB value into the `Record<string, unknown>` the
- * output schemas and channel adapters expect. Malformed configs degrade to an
- * empty record (no blind type assertions — shared/typescript.md).
- */
-export function asRecord(value: unknown): Record<string, unknown> {
-  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
-  }
-  return {};
-}

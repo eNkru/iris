@@ -31,10 +31,9 @@ vi.mock("../../packages/prices/src/notifications/telegram", () => ({
   sendTelegramText: mockSendTelegramText,
 }));
 
-import { logger } from "@iris/utils";
+import { formatRelativeTime, logger } from "@iris/utils";
 import {
   formatProductSummaryMessage,
-  formatRelativeTime,
   sendProductSummary,
 } from "../../packages/prices/src/notifications/summary";
 
@@ -142,39 +141,39 @@ describe("formatRelativeTime", () => {
     expect(formatRelativeTime(date, "zh")).toBe("刚刚");
   });
 
-  it("returns '1m ago' / '1分钟前' for exactly 1 minute", () => {
+  it("returns '1 minute ago' / '1分钟前' for exactly 1 minute", () => {
     const date = new Date(now.getTime() - 60 * 1000);
-    expect(formatRelativeTime(date, "en")).toBe("1m ago");
+    expect(formatRelativeTime(date, "en")).toBe("1 minute ago");
     expect(formatRelativeTime(date, "zh")).toBe("1分钟前");
   });
 
-  it("returns '59m ago' / '59分钟前' for 59 minutes", () => {
+  it("returns '59 minutes ago' / '59分钟前' for 59 minutes", () => {
     const date = new Date(now.getTime() - 59 * 60 * 1000);
-    expect(formatRelativeTime(date, "en")).toBe("59m ago");
+    expect(formatRelativeTime(date, "en")).toBe("59 minutes ago");
     expect(formatRelativeTime(date, "zh")).toBe("59分钟前");
   });
 
-  it("returns '1h ago' / '1小时前' for exactly 1 hour", () => {
+  it("returns '1 hour ago' / '1小时前' for exactly 1 hour", () => {
     const date = new Date(now.getTime() - 60 * 60 * 1000);
-    expect(formatRelativeTime(date, "en")).toBe("1h ago");
+    expect(formatRelativeTime(date, "en")).toBe("1 hour ago");
     expect(formatRelativeTime(date, "zh")).toBe("1小时前");
   });
 
-  it("returns '23h ago' / '23小时前' for 23 hours", () => {
+  it("returns '23 hours ago' / '23小时前' for 23 hours", () => {
     const date = new Date(now.getTime() - 23 * 60 * 60 * 1000);
-    expect(formatRelativeTime(date, "en")).toBe("23h ago");
+    expect(formatRelativeTime(date, "en")).toBe("23 hours ago");
     expect(formatRelativeTime(date, "zh")).toBe("23小时前");
   });
 
-  it("returns '1d ago' / '1天前' for exactly 1 day", () => {
+  it("returns 'yesterday' / '昨天' for exactly 1 day", () => {
     const date = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    expect(formatRelativeTime(date, "en")).toBe("1d ago");
-    expect(formatRelativeTime(date, "zh")).toBe("1天前");
+    expect(formatRelativeTime(date, "en")).toBe("yesterday");
+    expect(formatRelativeTime(date, "zh")).toBe("昨天");
   });
 
-  it("returns '6d ago' / '6天前' for 6 days", () => {
+  it("returns '6 days ago' / '6天前' for 6 days", () => {
     const date = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
-    expect(formatRelativeTime(date, "en")).toBe("6d ago");
+    expect(formatRelativeTime(date, "en")).toBe("6 days ago");
     expect(formatRelativeTime(date, "zh")).toBe("6天前");
   });
 

@@ -8,6 +8,7 @@ import type {
   ReactNode,
 } from "react";
 import type { Lang } from "../lib/dictionary";
+import { formatRelativeTime as formatRelativeTimeBase } from "@iris/utils/format";
 
 /**
  * Small Tailwind-styled primitives shared across pages. Kept intentionally
@@ -217,34 +218,13 @@ export function formatPrice(price: number, currency: string | null): string {
 }
 
 /**
- * Locale-aware relative time for "last checked" style metadata. The
- * sub-minute case uses a fixed label (Intl.RelativeTimeFormat would render
- * noisy "30 seconds ago"); everything else goes through Intl so both
- * languages get idiomatic output ("5 minutes ago" / "5 分钟前").
+ * Locale-aware relative time for "last checked" style metadata. The web UI
+ * renders an em-dash for a never-checked product; the shared helper in
+ * `@iris/utils` (used by both the UI and Telegram summaries) handles the rest
+ * via `Intl.RelativeTimeFormat` for idiomatic en/zh output.
  */
 export function formatRelativeTime(date: Date | null, lang: Lang = "en"): string {
-  if (!date) {
-    return "—";
-  }
-  const locale = lang === "zh" ? "zh-CN" : "en";
-  const elapsedSeconds = Math.round((Date.now() - date.getTime()) / 1000);
-  if (elapsedSeconds < 60) {
-    return lang === "zh" ? "刚刚" : "just now";
-  }
-  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
-  const minutes = Math.round(elapsedSeconds / 60);
-  if (minutes < 60) {
-    return rtf.format(-minutes, "minute");
-  }
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) {
-    return rtf.format(-hours, "hour");
-  }
-  const days = Math.round(hours / 24);
-  if (days < 7) {
-    return rtf.format(-days, "day");
-  }
-  return date.toLocaleDateString(locale);
+  return date === null ? "—" : formatRelativeTimeBase(date, lang);
 }
 
 export function formatDateTime(date: Date | null): string {

@@ -113,7 +113,7 @@ export function backoffDelayMs(attempt: number): number {
   return calculateBackoffDelay(attempt, 1_000, 30_000, 0.5);
 }
 
-function sleep(ms: number): Promise<void> {
+export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
