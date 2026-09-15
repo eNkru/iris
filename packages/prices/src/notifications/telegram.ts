@@ -39,11 +39,31 @@ async function resolveBotToken(): Promise<string> {
 /**
  * Strip Telegram HTML tags for the plain-text fallback send. Tags in
  * `format.ts` output are always well-formed `<b>`/`<a href="...">` wrappers,
- * so a tag-removal regex is sufficient — entity escaping is harmless in a
- * fallback (rare) path.
+ * so tag removal is sufficient — entity escaping is harmless in a fallback
+ * (rare) path.
+ *
+ * Implemented as a linear scan instead of a `/<[^>]+>/g` replace: the regex
+ * form was flagged by CodeQL for polynomial backtracking on uncontrolled
+ * data, and a single removal pass can theoretically leave a newly-formed tag
+ * behind. Dropping each `<…>` span cannot join text into a new tag (every
+ * `<` before the consumed `>` is inside the dropped span), and anything
+ * remaining is literal text — the fallback sends without `parse_mode`, so
+ * Telegram does no HTML parsing.
  */
 function stripHtmlTags(html: string): string {
-  return html.replace(/<[^>]+>/g, "");
+  let out = "";
+  for (let i = 0; i < html.length; ) {
+    const start = html.indexOf("<", i);
+    if (start === -1) {
+      out += html.slice(i);
+      break;
+    }
+    out += html.slice(i, start);
+    const end = html.indexOf(">", start + 1);
+    if (end === -1) break; // unterminated tag: drop the remainder
+    i = end + 1;
+  }
+  return out;
 }
 
 /**
