@@ -1,16 +1,6 @@
-import { count, eq } from "drizzle-orm";
+import { count } from "drizzle-orm";
 import { db } from "../client";
 import { user } from "../schema/auth";
-
-type UserRow = typeof user.$inferSelect;
-
-/**
- * Count all users. Used by the first-user-becomes-admin bootstrap (R2).
- */
-export async function countUsers(): Promise<number> {
-  const [row] = await db.select({ count: count() }).from(user);
-  return row?.count ?? 0;
-}
 
 /**
  * Count all users within a transaction. Used by the admin bootstrap so the
@@ -23,12 +13,4 @@ export function countUsersInTx(tx: typeof db | Parameters<Parameters<typeof db.t
   // terminal rather than awaiting the query.
   const [row] = tx.select({ count: count() }).from(user).all();
   return row?.count ?? 0;
-}
-
-/**
- * Fetch a user by id.
- */
-export async function getUserById(id: string): Promise<UserRow | null> {
-  const [row] = await db.select().from(user).where(eq(user.id, id));
-  return row ?? null;
 }

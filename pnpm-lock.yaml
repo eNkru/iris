@@ -72,9 +72,6 @@ importers:
       hono:
         specifier: ^4.7.10
         version: 4.13.1
-      nuqs:
-        specifier: ^2.9.3
-        version: 2.9.3(next@15.5.22(@babel/core@7.29.7(supports-color@8.1.1))(@opentelemetry/api@1.9.0)(@types/node@22.20.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-router@7.18.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)
       react:
         specifier: ^19.0.0
         version: 19.2.8
@@ -2503,27 +2500,6 @@ packages:
   nodemailer@10.0.0:
     resolution: {integrity: sha512-wdv+hXBg0iIPIOf108FaZyTxqjQpCvQeAJt9pHHTooPy/y3vQtI9eiImM9AIVKR3e/0FeMA1oueNfBjFJcaK+Q==}
     engines: {node: '>=20.0.0'}
-
-  nuqs@2.9.3:
-    resolution: {integrity: sha512-Hdb4WfGMGX2dH0GCPFxdSevA2hgTSQs+kv+1G0OPr43/LIm1cyXIZSp0zCd7a/ZZXhbbCBDbyjXKPWHx/aBNWA==}
-    peerDependencies:
-      '@remix-run/react': '>=2'
-      '@tanstack/react-router': ^1
-      next: '>=14.2.0'
-      react: '>=18.2.0 || ^19.0.0-0'
-      react-router: ^5 || ^6 || ^7 || ^8
-      react-router-dom: ^5 || ^6 || ^7
-    peerDependenciesMeta:
-      '@remix-run/react':
-        optional: true
-      '@tanstack/react-router':
-        optional: true
-      next:
-        optional: true
-      react-router:
-        optional: true
-      react-router-dom:
-        optional: true
 
   once@1.4.0:
     resolution: {integrity: sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==}
@@ -5094,14 +5070,6 @@ snapshots:
   node-releases@2.0.53: {}
 
   nodemailer@10.0.0: {}
-
-  nuqs@2.9.3(next@15.5.22(@babel/core@7.29.7(supports-color@8.1.1))(@opentelemetry/api@1.9.0)(@types/node@22.20.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-router@7.18.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8):
-    dependencies:
-      '@standard-schema/spec': 1.1.0
-      react: 19.2.8
-    optionalDependencies:
-      next: 15.5.22(@babel/core@7.29.7(supports-color@8.1.1))(@opentelemetry/api@1.9.0)(@types/node@22.20.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      react-router: 7.18.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
 
   once@1.4.0:
     dependencies:

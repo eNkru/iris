@@ -9,11 +9,6 @@ import { orpc } from "../lib/orpc-query-utils";
  * use the oRPC-generated helpers (frontend/orpc-usage.md §7.1).
  */
 
-export type UserSettings = Awaited<ReturnType<(typeof orpcClient)["settings"]["get"]>>;
-export type GlobalSettings = Awaited<
-  ReturnType<(typeof orpcClient)["admin"]["globalSettings"]["get"]>
->;
-
 export function useUserSettings() {
   return useQuery(orpc.settings.get.queryOptions({ input: {} }));
 }

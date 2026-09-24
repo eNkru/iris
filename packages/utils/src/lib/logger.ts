@@ -142,8 +142,6 @@ export const logger = {
   },
 };
 
-export type Logger = typeof logger;
-
 /**
  * Structured fields for logging an unknown error value (logging.md): the
  * message plus the stack when available, so a production failure can actually

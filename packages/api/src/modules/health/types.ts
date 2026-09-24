@@ -5,5 +5,3 @@ export const healthCheckOutputSchema = z.object({
   reason: z.string(),
   status: z.literal("ok"),
 });
-
-export type HealthCheckOutput = z.infer<typeof healthCheckOutputSchema>;

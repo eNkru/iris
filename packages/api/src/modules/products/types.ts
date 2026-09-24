@@ -34,25 +34,21 @@ export const createProductInputSchema = z.object({
   /** Alert threshold rules (R10); null/absent = default alert on any change. */
   alertRules: alertRulesSchema.optional(),
 });
-export type CreateProductInput = z.infer<typeof createProductInputSchema>;
 
 export const listProductsInputSchema = z.object({
   active: z.boolean().optional(),
   limit: z.number().int().min(1).max(100).default(50),
 });
-export type ListProductsInput = z.infer<typeof listProductsInputSchema>;
 
 export const productIdInputSchema = z.object({
   id: z.string().uuid(),
 });
-export type ProductIdInput = z.infer<typeof productIdInputSchema>;
 
 export const getProductInputSchema = z.object({
   id: z.string().uuid(),
   /** Max number of history readings to return (change-point series is compact). */
   limit: z.number().int().min(1).max(10_000).default(1_000),
 });
-export type GetProductInput = z.infer<typeof getProductInputSchema>;
 
 export const updateProductInputSchema = z.object({
   id: z.string().uuid(),
@@ -60,12 +56,10 @@ export const updateProductInputSchema = z.object({
   alertRules: alertRulesSchema.optional(),
   active: z.boolean().optional(),
 });
-export type UpdateProductInput = z.infer<typeof updateProductInputSchema>;
 
 export const checkNowInputSchema = z.object({
   id: z.string().uuid(),
 });
-export type CheckNowInput = z.infer<typeof checkNowInputSchema>;
 
 // --- Output schemas ---
 
@@ -103,7 +97,6 @@ export type ProductOutput = z.infer<typeof productOutputSchema>;
 export const productListItemOutputSchema = productOutputSchema.extend({
   latestReading: priceReadingOutputSchema.nullable(),
 });
-export type ProductListItemOutput = z.infer<typeof productListItemOutputSchema>;
 
 /**
  * Result of one `checkPrice` run (mirrors `@iris/prices` `CheckPriceResult`,
@@ -132,7 +125,6 @@ export const checkPriceResultSchema = z.discriminatedUnion("status", [
     status: z.literal("not_found"),
   }),
 ]);
-export type CheckPriceResultOutput = z.infer<typeof checkPriceResultSchema>;
 
 export const createProductOutputSchema = z.object({
   success: z.literal(true),
@@ -140,14 +132,12 @@ export const createProductOutputSchema = z.object({
   product: productOutputSchema,
   check: checkPriceResultSchema,
 });
-export type CreateProductOutput = z.infer<typeof createProductOutputSchema>;
 
 export const listProductsOutputSchema = z.object({
   success: z.literal(true),
   reason: z.string(),
   products: z.array(productListItemOutputSchema),
 });
-export type ListProductsOutput = z.infer<typeof listProductsOutputSchema>;
 
 export const getProductOutputSchema = z.object({
   success: z.literal(true),
@@ -155,21 +145,17 @@ export const getProductOutputSchema = z.object({
   product: productOutputSchema,
   history: z.array(priceReadingOutputSchema),
 });
-export type GetProductOutput = z.infer<typeof getProductOutputSchema>;
 
 export const updateProductOutputSchema = z.object({
   success: z.literal(true),
   reason: z.string(),
   product: productOutputSchema,
 });
-export type UpdateProductOutput = z.infer<typeof updateProductOutputSchema>;
 
 export const deleteProductOutputSchema = okResultSchema;
-export type DeleteProductOutput = z.infer<typeof deleteProductOutputSchema>;
 
 export const checkNowOutputSchema = z.object({
   success: z.literal(true),
   reason: z.string(),
   check: checkPriceResultSchema,
 });
-export type CheckNowOutput = z.infer<typeof checkNowOutputSchema>;

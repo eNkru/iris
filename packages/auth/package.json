@@ -7,7 +7,6 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./lib/session-cache": "./src/lib/session-cache.ts",
     "./lib/bootstrap-admin": "./src/lib/bootstrap-admin.ts",
     "./lib/smtp": "./src/lib/smtp.ts",
     "./client": "./src/client.ts"

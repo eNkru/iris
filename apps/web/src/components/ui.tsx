@@ -7,9 +7,6 @@ import type {
   LabelHTMLAttributes,
   ReactNode,
 } from "react";
-import type { Lang } from "../lib/dictionary";
-import { formatRelativeTime as formatRelativeTimeBase } from "@iris/utils/format";
-
 /**
  * Small Tailwind-styled primitives shared across pages. Kept intentionally
  * dependency-free (no clsx/tailwind-merge) — plain template strings.
@@ -215,16 +212,6 @@ export function formatPrice(price: number, currency: string | null): string {
     // Invalid/unknown currency code (RangeError) — fall back to `CODE amount`.
     return `${currency} ${amount}`;
   }
-}
-
-/**
- * Locale-aware relative time for "last checked" style metadata. The web UI
- * renders an em-dash for a never-checked product; the shared helper in
- * `@iris/utils` (used by both the UI and Telegram summaries) handles the rest
- * via `Intl.RelativeTimeFormat` for idiomatic en/zh output.
- */
-export function formatRelativeTime(date: Date | null, lang: Lang = "en"): string {
-  return date === null ? "—" : formatRelativeTimeBase(date, lang);
 }
 
 export function formatDateTime(date: Date | null): string {

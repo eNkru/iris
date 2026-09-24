@@ -15,14 +15,12 @@ export const globalSettingsShapeSchema = z.object({
   pollIntervalDefaultMinutes: z.number().int(),
   telegramBotToken: z.string().nullable(),
 });
-export type GlobalSettingsOutput = z.infer<typeof globalSettingsShapeSchema>;
 
 export const getGlobalSettingsOutputSchema = z.object({
   success: z.literal(true),
   reason: z.string(),
   settings: globalSettingsShapeSchema,
 });
-export type GetGlobalSettingsOutput = z.infer<typeof getGlobalSettingsOutputSchema>;
 
 export const updateGlobalSettingsInputSchema = z.object({
   pollIntervalDefaultMinutes: z.number().int().min(1).max(10080).optional(),
@@ -39,7 +37,6 @@ export const updateGlobalSettingsInputSchema = z.object({
    */
   telegramBotToken: z.union([z.string(), z.null()]).optional(),
 });
-export type UpdateGlobalSettingsInput = z.infer<typeof updateGlobalSettingsInputSchema>;
 
 /**
  * Mask a stored secret (API key, bot token) for API responses. Short/empty

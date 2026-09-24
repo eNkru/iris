@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 import { ORPCError } from "@orpc/client";
 import { useCheckNow, useProduct } from "../hooks/use-products";
+import { formatRelativeTime } from "@iris/utils/format";
 import { AppShell } from "../components/app-shell";
 import { AuthGate } from "../components/auth-gate";
 import { PriceChart } from "../components/price-chart";
@@ -15,7 +16,6 @@ import {
   Spinner,
   formatDateTime,
   formatPrice,
-  formatRelativeTime,
 } from "../components/ui";
 
 export function ProductDetailPage() {
@@ -132,7 +132,9 @@ export function ProductDetailPage() {
             )}
             <span title={formatDateTime(product.lastCheckedAt)}>
               {t("detail.lastChecked", {
-                time: formatRelativeTime(product.lastCheckedAt, lang),
+                time: product.lastCheckedAt
+                  ? formatRelativeTime(product.lastCheckedAt, lang)
+                  : "—",
               })}
             </span>
             {/* Persisted last-check failure (scheduler checks included). Hidden

@@ -74,5 +74,3 @@ export const verification = sqliteTable(
     uniqueIndex("verification_value_unique").on(table.value),
   ],
 );
-
-export const authTables = { user, session, account, verification } as const;

@@ -7,10 +7,7 @@
 
 export type Lang = "en" | "zh";
 
-export const LANG_VALUES: readonly Lang[] = ["en", "zh"];
-
 export const LANG_STORAGE_KEY = "iris.lang";
-export const LANG_COOKIE_NAME = "iris.lang";
 
 const en = {
   // Brand
@@ -26,8 +23,6 @@ const en = {
   "nav.toggleTheme": "Switch to dark mode",
   "nav.toggleTheme.dark": "Switch to light mode",
   "nav.language": "Language",
-  "nav.language.en": "English",
-  "nav.language.zh": "中文",
 
   // Footer / project links
   "footer.navLabel": "Project links",
@@ -123,8 +118,6 @@ const en = {
   "channels.adding": "Adding…",
   "channels.add": "Add channel",
   "channels.languageLabel": "Notification language",
-  "channels.language.en": "English",
-  "channels.language.zh": "中文",
 
   // User settings
   "userSettings.loading": "Loading settings…",
@@ -264,8 +257,6 @@ const zh: Dictionary = {
   "nav.toggleTheme": "切换到深色模式",
   "nav.toggleTheme.dark": "切换到浅色模式",
   "nav.language": "语言",
-  "nav.language.en": "English",
-  "nav.language.zh": "中文",
 
   // Footer / project links
   "footer.navLabel": "项目链接",
@@ -361,8 +352,6 @@ const zh: Dictionary = {
   "channels.adding": "添加中…",
   "channels.add": "添加频道",
   "channels.languageLabel": "通知语言",
-  "channels.language.en": "English",
-  "channels.language.zh": "中文",
 
   // User settings
   "userSettings.loading": "正在加载设置…",

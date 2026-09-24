@@ -13,9 +13,6 @@ import { orpc } from "../lib/orpc-query-utils";
 
 export type CreateProductInput = Parameters<(typeof orpcClient)["products"]["create"]>[0];
 export type CreateProductOutput = Awaited<ReturnType<(typeof orpcClient)["products"]["create"]>>;
-export type ProductListItem = Awaited<
-  ReturnType<(typeof orpcClient)["products"]["list"]>
->["products"][number];
 export type ProductOutput = Awaited<
   ReturnType<(typeof orpcClient)["products"]["get"]>
 >["product"];

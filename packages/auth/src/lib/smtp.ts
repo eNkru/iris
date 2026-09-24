@@ -9,7 +9,7 @@ let transporter: Transporter | null = null;
  * magic-link login emails; the same transport will back the future email
  * alert channel (R12).
  */
-export function getSmtpTransporter(): Transporter {
+function getSmtpTransporter(): Transporter {
   if (!transporter) {
     const env = getEnv();
     transporter = nodemailer.createTransport({

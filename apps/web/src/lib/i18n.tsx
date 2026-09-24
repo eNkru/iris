@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { LANG_COOKIE_NAME, LANG_STORAGE_KEY, t, type DictKey, type Lang } from "./dictionary";
+import { LANG_STORAGE_KEY, t, type DictKey, type Lang } from "./dictionary";
 
 /**
  * Language switch options shared by the nav toggle and the per-channel
@@ -22,8 +22,7 @@ export const LANGUAGE_OPTIONS = [
 /**
  * Language context (frontend/state-management.md — UI language is appearance
  * state, same pattern as the theme context). Persisted to localStorage
- * (`iris.lang`); a matching cookie (`iris.lang`) lets server components render
- * translated headings and set `<html lang>`. Default is English.
+ * (`iris.lang`). Default is English.
  */
 
 function readStoredLang(): Lang | null {
@@ -36,10 +35,6 @@ function readStoredLang(): Lang | null {
   } catch {
     return null;
   }
-}
-
-function writeLangCookie(lang: Lang): void {
-  document.cookie = `${LANG_COOKIE_NAME}=${lang}; path=/; max-age=31536000; samesite=lax`;
 }
 
 interface I18nContextValue {
@@ -77,7 +72,6 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     } catch {
       // Storage unavailable (e.g. private mode) — language still applies this session.
     }
-    writeLangCookie(next);
   }, []);
 
   const translate = useCallback(

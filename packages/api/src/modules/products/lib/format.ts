@@ -1,5 +1,4 @@
 import { priceReadings, products } from "@iris/database/drizzle/schema/sqlite";
-import { toNullableNumber, toNumber } from "../../shared";
 import type { PriceReadingOutput, ProductOutput } from "../types";
 
 type ProductRow = typeof products.$inferSelect;
@@ -17,7 +16,7 @@ export function toProductOutput(row: ProductRow): ProductOutput {
     url: row.url,
     name: row.name,
     currency: row.currency,
-    currentPrice: toNullableNumber(row.currentPrice),
+    currentPrice: row.currentPrice === null ? null : Number(row.currentPrice),
     imagePath: row.imagePath,
     lastCheckedAt: row.lastCheckedAt,
     lastCheckStatus: toCheckStatus(row.lastCheckStatus),
@@ -51,7 +50,7 @@ export function toPriceReadingOutput(row: ReadingRow): PriceReadingOutput {
   return {
     id: row.id,
     productId: row.productId,
-    price: toNumber(row.price),
+    price: Number(row.price),
     currency: row.currency,
     checkedAt: row.checkedAt,
   };
