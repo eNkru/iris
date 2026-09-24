@@ -17,7 +17,6 @@ export const createChannelInputSchema = z.object({
   /** Notification message language, stored in `alert_channels.config.language`. Defaults to `en`. */
   language: languageZodSchema.optional(),
 });
-export type CreateChannelInput = z.infer<typeof createChannelInputSchema>;
 
 export const updateChannelInputSchema = z.object({
   id: z.string().uuid(),
@@ -26,12 +25,10 @@ export const updateChannelInputSchema = z.object({
   /** Notification message language; when omitted the stored value is preserved. */
   language: languageZodSchema.optional(),
 });
-export type UpdateChannelInput = z.infer<typeof updateChannelInputSchema>;
 
 export const channelIdInputSchema = z.object({
   id: z.string().uuid(),
 });
-export type ChannelIdInput = z.infer<typeof channelIdInputSchema>;
 
 // --- Output schemas ---
 
@@ -51,24 +48,20 @@ export const listChannelsOutputSchema = z.object({
   reason: z.string(),
   channels: z.array(channelOutputSchema),
 });
-export type ListChannelsOutput = z.infer<typeof listChannelsOutputSchema>;
 
 export const createChannelOutputSchema = z.object({
   success: z.literal(true),
   reason: z.string(),
   channel: channelOutputSchema,
 });
-export type CreateChannelOutput = z.infer<typeof createChannelOutputSchema>;
 
 export const updateChannelOutputSchema = z.object({
   success: z.literal(true),
   reason: z.string(),
   channel: channelOutputSchema,
 });
-export type UpdateChannelOutput = z.infer<typeof updateChannelOutputSchema>;
 
 export const deleteChannelOutputSchema = okResultSchema;
-export type DeleteChannelOutput = z.infer<typeof deleteChannelOutputSchema>;
 
 /**
  * Result of sending a product summary to the user's Telegram channel(s)
@@ -81,4 +74,3 @@ export const sendSummaryOutputSchema = z.object({
   total: z.number().int().min(0),
   productsCount: z.number().int().min(0),
 });
-export type SendSummaryOutput = z.infer<typeof sendSummaryOutputSchema>;

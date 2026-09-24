@@ -83,7 +83,7 @@ export type Env = z.infer<typeof envSchema>;
  * Parse a raw environment object (defaults to `process.env`) against the
  * schema. Exposed for tests and for packages that need a scoped subset.
  */
-export function loadEnv(schema: z.ZodType<Env> = envSchema): Env {
+function loadEnv(schema: z.ZodType<Env> = envSchema): Env {
   return schema.parse(process.env);
 }
 

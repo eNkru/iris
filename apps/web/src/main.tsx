@@ -1,5 +1,4 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { NuqsAdapter } from "nuqs/adapters/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router";
@@ -12,13 +11,9 @@ import "./index.css";
 /**
  * Client entry (design.md §Architecture). Mounts the provider stack:
  *
- * QueryClientProvider (server state) → NuqsAdapter (URL state) →
- * SessionProvider (auth) → LanguageProvider (i18n) → ThemeProvider →
- * BrowserRouter (client routing) → App (routes + app shell).
- *
- * The NuqsAdapter swaps from `nuqs/adapters/next/app` to `nuqs/adapters/react`
- * (the generic adapter that uses the native History API — works alongside
- * React Router without needing a router-specific adapter).
+ * QueryClientProvider (server state) → SessionProvider (auth) →
+ * LanguageProvider (i18n) → ThemeProvider → BrowserRouter (client routing) →
+ * App (routes + app shell).
  */
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,17 +32,15 @@ if (!root) {
 createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <NuqsAdapter>
-        <SessionProvider>
-          <LanguageProvider>
-            <ThemeProvider>
-              <BrowserRouter>
-                <App />
-              </BrowserRouter>
-            </ThemeProvider>
-          </LanguageProvider>
-        </SessionProvider>
-      </NuqsAdapter>
+      <SessionProvider>
+        <LanguageProvider>
+          <ThemeProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </ThemeProvider>
+        </LanguageProvider>
+      </SessionProvider>
     </QueryClientProvider>
   </StrictMode>,
 );

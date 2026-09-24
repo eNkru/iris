@@ -11,13 +11,11 @@ export const historyReadingSchema = z.object({
   price: z.number(),
   currency: z.string().nullable(),
 });
-export type HistoryReading = z.infer<typeof historyReadingSchema>;
 
 export const byProductInputSchema = z.object({
   id: z.string().uuid(),
   limit: z.number().int().min(1).max(10_000).default(5_000),
 });
-export type ByProductInput = z.infer<typeof byProductInputSchema>;
 
 export const byProductOutputSchema = z.object({
   success: z.literal(true),
@@ -26,4 +24,3 @@ export const byProductOutputSchema = z.object({
   currency: z.string().nullable(),
   readings: z.array(historyReadingSchema),
 });
-export type ByProductOutput = z.infer<typeof byProductOutputSchema>;

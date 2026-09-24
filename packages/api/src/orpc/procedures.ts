@@ -1,6 +1,6 @@
 import { ORPCError, os } from "@orpc/server";
 import { errorFields, logger } from "@iris/utils";
-import { getSessionWithCache } from "@iris/auth/lib/session-cache";
+import { auth } from "@iris/auth";
 import { logIdMiddleware, getOrGenerateLogId } from "./middleware/log-id-middleware";
 
 // Re-exported for the HTTP entrypoint (server.ts), which owns the only
@@ -41,9 +41,9 @@ export const publicProcedure = os
  */
 export const protectedProcedure = publicProcedure.use(
   async ({ context, next }) => {
-    const result = await getSessionWithCache(context.headers);
+    const result = await auth.api.getSession({ headers: context.headers });
 
-    if (!result.session) {
+    if (!result?.session) {
       throw new ORPCError("UNAUTHORIZED", {
         message: "Please sign in to continue",
       });
@@ -51,8 +51,8 @@ export const protectedProcedure = publicProcedure.use(
 
     return await next({
       context: {
-        session: result.session.session,
-        user: result.session.user,
+        session: result.session,
+        user: result.user,
       },
     });
   },

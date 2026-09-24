@@ -3,7 +3,6 @@ import { ORPCError } from "@orpc/server";
 import { db } from "@iris/database";
 import { priceReadings, products } from "@iris/database/drizzle/schema/sqlite";
 import { protectedProcedure } from "../../../orpc/procedures";
-import { toNumber } from "../../shared";
 import { byProductInputSchema, byProductOutputSchema } from "../types";
 
 /**
@@ -46,7 +45,7 @@ export const byProductHistory = protectedProcedure
       currency: product.currency,
       readings: readings.map((reading) => ({
         checkedAt: reading.checkedAt,
-        price: toNumber(reading.price),
+        price: Number(reading.price),
         currency: reading.currency,
       })),
     };

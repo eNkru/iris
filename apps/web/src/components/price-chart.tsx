@@ -1,7 +1,7 @@
 "use client";
 
-import { useQueryState } from "nuqs";
 import { useMemo } from "react";
+import { useSearchParams } from "react-router";
 import {
   Area,
   AreaChart,
@@ -95,12 +95,12 @@ function endOfDay(date: Date): Date {
 }
 
 /**
- * Daily price trend chart (R13) with a nuqs-backed time-range selector
- * (design.md: 7d/30d/all). Readings are the compact change-point series; the
- * chart fills daily gaps (carrying forward the last known price) and renders a
- * stepped area chart so flat periods and change points are visually clear.
- * `currency` (when known) is shown in the tooltip series label and Y-axis
- * ticks (R11/R9).
+ * Daily price trend chart (R13) with a URL-backed time-range selector
+ * (React Router `useSearchParams`: 7d/30d/all). Readings are the compact
+ * change-point series; the chart fills daily gaps (carrying forward the last
+ * known price) and renders a stepped area chart so flat periods and change
+ * points are visually clear. `currency` (when known) is shown in the tooltip
+ * series label and Y-axis ticks (R11/R9).
  */
 export function PriceChart({
   history,
@@ -110,11 +110,15 @@ export function PriceChart({
   currency: string | null;
 }) {
   const { t } = useI18n();
-  const [range, setRange] = useQueryState<RangeValue>("range", {
-    defaultValue: "30d",
-    parse: (value) => (isRangeValue(value) ? value : "30d"),
-    serialize: (value) => value,
-  });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawRange = searchParams.get("range");
+  const range: RangeValue = isRangeValue(rawRange) ? rawRange : "30d";
+
+  // Write the selection to the URL; omit the param at the default so a plain
+  // product URL stays clean (invalid/absent `range` falls back to 30d).
+  const setRange = (value: RangeValue): void => {
+    setSearchParams(value === "30d" ? {} : { range: value }, { replace: true });
+  };
 
   const rangeOptions = [
     { value: "7d", label: t("chart.7d") },

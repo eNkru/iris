@@ -10,6 +10,7 @@ import {
 } from "../hooks/use-products";
 import { useSendSummary } from "../hooks/use-channels";
 import { ORPCError } from "@orpc/client";
+import { formatRelativeTime } from "@iris/utils/format";
 import { useI18n } from "../lib/i18n";
 import { TelegramHelpTooltip } from "./telegram-help-tooltip";
 import {
@@ -22,7 +23,6 @@ import {
   SuccessBox,
   formatDateTime,
   formatPrice,
-  formatRelativeTime,
 } from "./ui";
 
 /**
@@ -289,7 +289,9 @@ export function ProductList() {
                       </span>
                       {t("productList.checked")}
                       <span title={formatDateTime(product.lastCheckedAt)}>
-                        {formatRelativeTime(product.lastCheckedAt, lang)}
+                        {product.lastCheckedAt
+                          ? formatRelativeTime(product.lastCheckedAt, lang)
+                          : "—"}
                       </span>
                     </>
                   ) : (

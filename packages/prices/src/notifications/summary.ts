@@ -13,16 +13,6 @@ import { sendTelegramText } from "./telegram";
  * sender so bot-token resolution and send semantics stay in one place.
  */
 
-export interface ProductSummaryItem {
-  id: string;
-  url: string;
-  name: string | null;
-  currency: string | null;
-  currentPrice: number | null;
-  lastCheckedAt: Date | null;
-  active: boolean;
-}
-
 export interface ProductSummaryResult {
   /** Enabled channels targeted for delivery (only telegram is registered). */
   total: number;
