@@ -1,57 +1,75 @@
 import { defineConfig } from "vitest/config";
 import { resolve } from "node:path";
 
+/**
+ * Resolve aliases shared across every project. `projects` in vitest 4 do NOT
+ * inherit `resolve.alias` from the parent config — each project has its own
+ * Vite scope. We extract shared aliases into a helper to keep the project
+ * blocks below DRY.
+ */
+const sharedResolveAlias = {
+  react: resolve(__dirname, "apps/web/node_modules/react"),
+  "react-dom": resolve(__dirname, "apps/web/node_modules/react-dom"),
+  "@tanstack/react-query": resolve(
+    __dirname,
+    "apps/web/node_modules/@tanstack/react-query",
+  ),
+  "react-router": resolve(__dirname, "apps/web/node_modules/react-router"),
+  "@orpc/client": resolve(__dirname, "apps/web/node_modules/@orpc/client"),
+  // Workspace aliases — Vite-level, applied to every project's transform step.
+  // More-specific aliases MUST come before the bare package alias so that
+  // `@iris/database/drizzle/schema/sqlite` is not captured by the bare
+  // `@iris/database` entry (longest-prefix match).
+  "@iris/prices/pipeline": resolve(__dirname, "packages/prices/src/pipeline/index.ts"),
+  "@iris/prices": resolve(__dirname, "packages/prices/src/index.ts"),
+  "@iris/utils/format": resolve(__dirname, "packages/utils/src/lib/format.ts"),
+  "@iris/utils": resolve(__dirname, "packages/utils/src/index.ts"),
+  "@iris/database/drizzle/queries": resolve(
+    __dirname,
+    "packages/database/src/drizzle/queries/index.ts",
+  ),
+  "@iris/database/drizzle/schema/sqlite": resolve(
+    __dirname,
+    "packages/database/src/drizzle/schema/sqlite.ts",
+  ),
+  "@iris/database/drizzle/schema": resolve(__dirname, "packages/database/src/drizzle/schema/index.ts"),
+  "@iris/database": resolve(__dirname, "packages/database/src/index.ts"),
+};
+
 export default defineConfig({
   test: {
-    dir: "tests",
     setupFiles: ["./tests/setup.ts"],
-    environmentMatchGlobs: [
-      ["tests/components/**", "jsdom"],
-      ["tests/unit/**", "node"],
-      ["tests/acceptance/**", "node"],
+    // vitest 4 removed `environmentMatchGlobs`; split the suite by environment
+    // via `projects`. Each project carries its own copy of the workspace alias
+    // map (vitest 4 projects do NOT inherit `resolve.alias` from the parent).
+    projects: [
+      {
+        test: {
+          name: "components",
+          include: ["tests/components/**"],
+          environment: "jsdom",
+          setupFiles: ["./tests/setup.ts"],
+        },
+        resolve: { alias: sharedResolveAlias },
+      },
+      {
+        test: {
+          name: "unit",
+          include: ["tests/unit/**"],
+          environment: "node",
+          setupFiles: ["./tests/setup.ts"],
+        },
+        resolve: { alias: sharedResolveAlias },
+      },
+      {
+        test: {
+          name: "acceptance",
+          include: ["tests/acceptance/**"],
+          environment: "node",
+          setupFiles: ["./tests/setup.ts"],
+        },
+        resolve: { alias: sharedResolveAlias },
+      },
     ],
-  },
-  resolve: {
-    alias: {
-      // `react` / `react-dom` live under `apps/web/node_modules` (pnpm
-      // hoists only that workspace). The component test suite pulls them
-      // in implicitly via JSX, so resolve them explicitly here.
-      react: resolve(__dirname, "apps/web/node_modules/react"),
-      "react-dom": resolve(__dirname, "apps/web/node_modules/react-dom"),
-      // Same pattern for the React Query + React Router packages the
-      // component tests render directly when wrapping the component in
-      // `QueryClientProvider` / `MemoryRouter`.
-      "@tanstack/react-query": resolve(
-        __dirname,
-        "apps/web/node_modules/@tanstack/react-query",
-      ),
-      "react-router": resolve(__dirname, "apps/web/node_modules/react-router"),
-      // Same pattern: @orpc/client is a dependency of apps/web (the oRPC
-      // client + the client-side ORPCError used by orpc-validation.ts).
-      "@orpc/client": resolve(__dirname, "apps/web/node_modules/@orpc/client"),
-      // Workspace aliases must live at the Vite level so unit tests can import
-      // `@iris/utils` / `@iris/database`. `test.resolve.alias` is not applied to those.
-      "@iris/prices/pipeline": resolve(__dirname, "packages/prices/src/pipeline/index.ts"),
-      "@iris/prices": resolve(__dirname, "packages/prices/src/index.ts"),
-      "@iris/utils/format": resolve(__dirname, "packages/utils/src/lib/format.ts"),
-      "@iris/utils": resolve(__dirname, "packages/utils/src/index.ts"),
-      // More-specific aliases MUST come before the bare package alias — Vite
-      // resolves aliases by longest-prefix match, so a subpath import like
-      // `@iris/database/drizzle/schema/sqlite` would otherwise be captured by
-      // the bare `@iris/database` entry below.
-      "@iris/database/drizzle/queries": resolve(
-        __dirname,
-        "packages/database/src/drizzle/queries/index.ts",
-      ),
-      "@iris/database/drizzle/schema/sqlite": resolve(
-        __dirname,
-        "packages/database/src/drizzle/schema/sqlite.ts",
-      ),
-      "@iris/database/drizzle/schema": resolve(
-        __dirname,
-        "packages/database/src/drizzle/schema/index.ts",
-      ),
-      "@iris/database": resolve(__dirname, "packages/database/src/index.ts"),
-    },
   },
 });
